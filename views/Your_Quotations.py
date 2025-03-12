@@ -5,7 +5,6 @@ from google.oauth2.service_account import Credentials
 import json
 import os
 import re
-import plotly.express as px
 from utils import get_name
 from st_aggrid import AgGrid, GridOptionsBuilder
 
