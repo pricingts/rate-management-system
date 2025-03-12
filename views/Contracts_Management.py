@@ -317,7 +317,7 @@ def select_options(contrato_id, available_cargo_types, tabla_pivot):
 def show(user):
     name = get_name(user)
 
-    if name in ["Stephanie Bruges", "Catherine Silva"]:
+    if name in ["Stephanie Bruges", "Catherine Silva", "Shadia Jaafar"]:
         html_code = """
         <div style="display: flex; justify-content: center;">
             <iframe width="1000" height="700" 
