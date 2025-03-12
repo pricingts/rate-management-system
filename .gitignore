@@ -1,6 +1,6 @@
 /mejoras/
 /temp/
 /__pycache__/
-/token/
 .streamlit/secrets.toml
 temp_uploads/*
+
