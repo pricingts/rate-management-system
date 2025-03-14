@@ -9,7 +9,6 @@ from utils import load_existing_ids_from_sheets, log_time
 import pytz
 from datetime import datetime
 import datetime as dt
-from utils import get_name
 
 colombia_timezone = pytz.timezone('America/Bogota')
 
@@ -314,10 +313,11 @@ def select_options(contrato_id, available_cargo_types, tabla_pivot):
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
-def show(user):
-    name = get_name(user)
+def show():
+    email = st.experimental_user.email
+    scrap_team = ["bds@tradingsol.com", "insidesales@tradingsol.com"]
 
-    if name in ["Stephanie Bruges", "Catherine Silva", "Shadia Jaafar"]:
+    if email in scrap_team:
         html_code = """
         <div style="display: flex; justify-content: center;">
             <iframe width="1000" height="700" 
@@ -423,7 +423,6 @@ def show(user):
                             with columnas[idx]:
                                 with st.expander(f"🚢 **{linea} - {contrato_id}**", expanded=True):
                                     contrato_info = contrato_rows.iloc[0]
-                                    print(contrato_info.index)
                                     fields = {
                                         "Shipping Line": contrato_info.get("Línea", ""),
                                         "Commodities": contrato_info.get("COMMODITIES", ""),
@@ -435,9 +434,6 @@ def show(user):
                                         "Route": contrato_info.get("RUTA", ""),
                                         "Suitable Food": contrato_info.get("APTO ALIMENTO", ""),
                                     }
-
-                                    print(get_valid_value(contrato_info.get("DÍAS ORIGEN", ""), contrato_info.get("FDO", "")))
-                                    print(get_valid_value(contrato_info.get("DÍAS DESTINO APROBADOS", ""), contrato_info.get("FDD", "")))
 
                                     col3, col4 = st.columns(2)
                                     index = 0
@@ -515,7 +511,7 @@ def show(user):
                                     if st.button('Select', key=f"select_{linea}_{contrato_id}"):
                                         st.session_state["selected_contract"] = contrato_id
                                         st.session_state["selected_data"] = {
-                                            "Commercial": name,
+                                            "Commercial": st.experimental_user.name,
                                             "POL": p_origen,
                                             "POD": p_destino,
                                             "Contract ID": contrato_id,

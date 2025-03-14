@@ -951,7 +951,7 @@ def final_questions():
     col1, col2 = st.columns(2)
     with col1:
         volumen_num = st.number_input(
-            "Quantity", key="volumen_num", value=float(st.session_state.volumen_num), min_value=0.0
+            "Quantity", key="volumen_num", value=st.session_state.volumen_num, min_value=0.0
         ) 
 
     with col2:
@@ -1242,27 +1242,18 @@ def change_page(new_page):
 def save_to_google_sheets(dataframe, sheet_id, max_attempts=5):
 
     temp_service = dataframe["service"].astype(str).str.replace("\n", ", ")
-
-    is_ground_usa = (
-        temp_service.str.contains(r"\bGround Transportation\b", na=False, regex=True) &
-        dataframe["country_origin"].str.lower().str.strip().eq("united states") &
-        dataframe["country_destination"].str.lower().str.strip().eq("united states")
-    )
-
-    contains_ground_usa = is_ground_usa.any() 
+    is_ground = temp_service.str.contains(r"\bGround Transportation\b", na=False, regex=True)
+    contains_ground = is_ground.any()
 
     attempts = 0
     while attempts < max_attempts:
         try:
-            if contains_ground_usa: 
-                if "," in temp_service.iloc[0]:  
+            if contains_ground: 
+                save_data_to_google_sheets(dataframe, sheet_id, "Ground Quotations")
+                if temp_service.str.contains(",").any():
                     save_data_to_google_sheets(dataframe, sheet_id, "All Quotes")
-                    save_data_to_google_sheets(dataframe, sheet_id, "Ground Quotations")
-                else:
-                    save_data_to_google_sheets(dataframe, sheet_id, "Ground Quotations")
-            
-            else: 
-                save_data_to_google_sheets(dataframe, sheet_id, "TEST")
+            else:
+                save_data_to_google_sheets(dataframe, sheet_id, "All Quotes")
 
             return 
 
@@ -1651,3 +1642,33 @@ def get_name(user):
     }
 
     return name_mapping.get(user, None)
+
+def identity_role(email):
+    comerciales = [
+        "sales2@tradingsol.com", "sales1@tradingsol.com", "sales3@tradingsol.com",
+        "sales4@tradingsol.com", "sales@tradingsol.com", "sales5@tradingsol.com",
+        "bds@tradingsol.com", "insidesales@tradingsol.com"
+    ]
+    pricing = [
+        "pricing2@tradingsol.com", "pricing8@tradingsol.com",
+        "pricing6@tradingsol.com", "pricing10@tradingsol.com", "pricing11@tradingsol.com",
+        "customer9@tradingsol.com"
+    ]
+    ground = [
+        "ground@tradingsol.com", "customer5@tradingsol.com", "ground1@tradingsol.com"
+    ]
+    admin = [
+        "manager@tradingsol.com", "pricing@tradingsol.com", "pricing10@tradingsol.com", "pricing2@tradingsol.com"
+    ]
+
+    if email in comerciales:
+        return "commercial"
+    elif email in pricing:
+        return "pricing"
+    elif email in ground:
+        return "ground"
+    elif email in admin:
+        return "admin"
+    else:
+        return None
+

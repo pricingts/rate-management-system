@@ -11,7 +11,7 @@ import string
 import os
 from utils import get_name
 
-def show(user):
+def show():
 
     sheet_id = st.secrets["general"]["quotations_requested"]
     DRIVE_ID = st.secrets["general"]["drive_id"]
@@ -134,7 +134,7 @@ def show(user):
 
         start_time = st.session_state["start_time"]
 
-        st.session_state["sales_rep"] = get_name(user)
+        st.session_state["sales_rep"] = st.experimental_user.name
 
         if st.session_state["page"] == "client_name":
 

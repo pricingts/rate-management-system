@@ -1,8 +1,7 @@
 import streamlit as st
-from google_auth_st import add_auth
 
 def user_data():
-    user = st.session_state.email
+    user = st.experimental_user.email
     users = {
         "pricing@tradingsol.com": {
             "name": "Shadia Jaafar",
@@ -69,16 +68,29 @@ def user_data():
     return users.get(user, {"name": "Desconocido", "position": "N/A", "tel": "N/A", "email": user})
 
 
-
 def check_authentication():
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
 
     if not st.session_state.authenticated:
-        st.warning("Please Login first")
-        add_auth(login_sidebar=False)
-        st.success("Welcome!")
-        st.session_state.authenticated = True
-        return True 
+        st.warning("Por favor, inicia sesión primero.")
 
-    return True
+        if not st.experimental_user.is_logged_in:
+            if st.button("Log in ➡️"):
+                st.login()
+            st.stop()
+        else:
+            st.header(f"Hello, {st.experimental_user.name}!")
+            st.session_state.authenticated = True
+
+    if st.experimental_user.is_logged_in:
+        col1, col2, col3 = st.columns([1, 1.55, 0.3])
+        with col3:
+            if st.button("Log out"):
+                st.logout()
+                st.session_state.authenticated = False
+                st.rerun() 
+    else:
+        st.session_state.authenticated = False
+        st.stop()
+
