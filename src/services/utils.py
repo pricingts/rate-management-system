@@ -17,7 +17,7 @@ TEMP_DIR = "temp_uploads"
 all_quotes_columns =[
     "request_id", "time", "commercial", "service", "client", "client_reference", "incoterm", "commodity", "hs_code", "transport_type", "modality", "routes_info", "ground_routes", "country_origin", "country_destination", "pickup_address", "zip_code_origin", "delivery_address", "zip_code_destination", "addresses",
     "type_container", "info_flatrack", "container_characteristics", "imo", "ground_service", "reefer_details", "additional_costs", "cargo_value", "weight", "positioning", "pickup_city", "lcl_fcl_mode",
-    "info_pallets_str", "lcl_description", "stackable", "final_comments",
+    "info_pallets_str", "lcl_description", "stackable",  "volumen_num", "volumen_frequency", "final_comments",
 ]
 
 sheet_id = st.secrets["general"]["quotations_requested"]
@@ -289,13 +289,16 @@ def common_questions():
             "Open Top 20'",
             "Open Top 40'",
             "Flat Rack 20'",
-            "Flat Rack 40'"
+            "Flat Rack 40'",
+            "Ro Ro",
+            "Break Bulk"
+
         ],
         default=[], 
         key="type_container"
     )
 
-    if any(tc in ["Flat Rack 20'", "Flat Rack 40'"] for tc in type_container):
+    if any(tc in ["Flat Rack 20'", "Flat Rack 40'", "Ro Ro", "Break Bulk"] for tc in type_container):
 
         col1, col2, col3, col4, col5, col6 = st.columns(6)
 
@@ -505,6 +508,11 @@ def handle_remove_route(index):
     if 0 <= index < len(st.session_state["routes"]):
         del st.session_state["routes"][index]
 
+def copy_route(index):
+    if 0 <= index < len(st.session_state["routes"]):
+        route_to_copy = st.session_state["routes"][index].copy()
+        st.session_state["routes"].append(route_to_copy)
+
 def handle_routes(transport_type):
     initialize_routes()
     
@@ -535,7 +543,7 @@ def handle_routes(transport_type):
     for i in range(len(st.session_state["routes"])):
         route = st.session_state["routes"][i]
         st.markdown(f"### Route {i+1}")
-        cols = st.columns([0.45, 0.45, 0.1])
+        cols = st.columns([0.45, 0.45, 0.09, 0.09])
 
         with cols[0]: 
             col1, col2 = st.columns(2)
@@ -590,6 +598,15 @@ def handle_routes(transport_type):
                 "**X**", 
                 on_click=lambda i=i: handle_remove_route(i), 
                 key=f"remove_route_{i}", 
+                use_container_width=True
+            )
+        with cols[3]:
+            st.write("")
+            st.write("")
+            st.button(
+                "**Copy**",
+                on_click=lambda i=i: copy_route(i), 
+                key=f"copy_route_{i}", 
                 use_container_width=True
             )
 
@@ -939,8 +956,8 @@ def final_questions():
     if "final_comments" not in st.session_state:
         st.session_state.final_comments = st.session_state.get("temp_details", {}).get("final_comments", "")
 
-    if "volumen_num" not in st.session_state or not isinstance(st.session_state.get("volumen_num"), (int, float)):
-        st.session_state.volumen_num = st.session_state.get("temp_details", {}).get("volumen_num", 0)
+    if "volumen_num" not in st.session_state or not isinstance(st.session_state.get("volumen_num"), int):
+        st.session_state.volumen_num = st.session_state.get("temp_details", {}).get("volumen_num", 0) or 0
     
     if "volumen_frequency" not in st.session_state:
         st.session_state.volumen_frequency = st.session_state.get("temp_details", {}).get("volumen_frequency", "")
@@ -951,7 +968,7 @@ def final_questions():
     col1, col2 = st.columns(2)
     with col1:
         volumen_num = st.number_input(
-            "Quantity", key="volumen_num", value=st.session_state.volumen_num, min_value=0.0
+            "Quantity", key="volumen_num", value=int(st.session_state.volumen_num), min_value=0, step=1
         ) 
 
     with col2:
@@ -1155,26 +1172,6 @@ def validate_service_details(temp_details):
         if weight <= 0.0:
             errors.append("Weight is required.")
 
-        pass
-        # pickup_address = temp_details.get("pickup_address","")
-        # delivery_address = temp_details.get("delivery_address", "")
-        # country_origin = temp_details.get("country_origin", "")
-        # country_destination = temp_details.get("country_destination", "")
-        # city_origin = temp_details.get("city_origin", "")
-        # city_destination = temp_details.get("city_destination", "")
-
-        # if not country_origin:
-        #     errors.append("Country of Origin is required.")
-        # if not city_origin:
-        #     errors.append("City of Origin is required.")
-        # if not country_destination:
-        #     errors.append("Country of Destination is required.")
-        # if not city_destination:
-        #     errors.append("City of Destination is required.")
-        # if not pickup_address:
-        #     errors.append("Pick up address is required.")
-        # if not delivery_address:
-        #     errors.append("Delivery address is required.")
 
     elif service == "Customs Brokerage":
         country_origin = temp_details.get("country_origin", [])
@@ -1240,6 +1237,16 @@ def change_page(new_page):
     st.session_state["page"] = new_page
 
 def save_to_google_sheets(dataframe, sheet_id, max_attempts=5):
+    has_pickup = dataframe["pickup_address"].notna() & (dataframe["pickup_address"].astype(str).str.strip() != "")
+    has_delivery = dataframe["delivery_address"].notna() & (dataframe["delivery_address"].astype(str).str.strip() != "")
+
+    if has_pickup.any() or has_delivery.any():
+        has_routes_info = dataframe["routes_info"].notna() & (dataframe["routes_info"].astype(str).str.strip() != "")
+        pattern = r"(?i)(colombia|united states)"
+        routes_matches = dataframe["routes_info"].astype(str).str.contains(pattern, na=False, regex=True)
+        contains_routes_match = (has_routes_info & routes_matches).any()
+    else:
+        contains_routes_match = False
 
     temp_service = dataframe["service"].astype(str).str.replace("\n", ", ")
     is_ground = temp_service.str.contains(r"\bGround Transportation\b", na=False, regex=True)
@@ -1248,13 +1255,15 @@ def save_to_google_sheets(dataframe, sheet_id, max_attempts=5):
     attempts = 0
     while attempts < max_attempts:
         try:
-            if contains_ground: 
+            if contains_routes_match:
+                save_data_to_google_sheets(dataframe, sheet_id, "Ground Quotations")
+                save_data_to_google_sheets(dataframe, sheet_id, "All Quotes")  # CAMBIAR A All Quotes si es necesario
+            elif contains_ground:
                 save_data_to_google_sheets(dataframe, sheet_id, "Ground Quotations")
                 if temp_service.str.contains(",").any():
-                    save_data_to_google_sheets(dataframe, sheet_id, "All Quotes")
+                    save_data_to_google_sheets(dataframe, sheet_id, "All Quotes")  # CAMBIAR A All Quotes si es necesario
             else:
-                save_data_to_google_sheets(dataframe, sheet_id, "All Quotes")
-
+                save_data_to_google_sheets(dataframe, sheet_id, "All Quotes")  # CAMBIAR A All Quotes si es necesario
             return 
 
         except Exception as e:
@@ -1642,33 +1651,4 @@ def get_name(user):
     }
 
     return name_mapping.get(user, None)
-
-def identity_role(email):
-    comerciales = [
-        "sales2@tradingsol.com", "sales1@tradingsol.com", "sales3@tradingsol.com",
-        "sales4@tradingsol.com", "sales@tradingsol.com", "sales5@tradingsol.com",
-        "bds@tradingsol.com", "insidesales@tradingsol.com"
-    ]
-    pricing = [
-        "pricing2@tradingsol.com", "pricing8@tradingsol.com",
-        "pricing6@tradingsol.com", "pricing10@tradingsol.com", "pricing11@tradingsol.com",
-        "customer9@tradingsol.com"
-    ]
-    ground = [
-        "ground@tradingsol.com", "customer5@tradingsol.com", "ground1@tradingsol.com"
-    ]
-    admin = [
-        "manager@tradingsol.com", "pricing@tradingsol.com", "pricing10@tradingsol.com", "pricing2@tradingsol.com"
-    ]
-
-    if email in comerciales:
-        return "commercial"
-    elif email in pricing:
-        return "pricing"
-    elif email in ground:
-        return "ground"
-    elif email in admin:
-        return "admin"
-    else:
-        return None
 

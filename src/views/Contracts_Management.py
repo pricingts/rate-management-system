@@ -3,14 +3,31 @@ from google.oauth2.service_account import Credentials
 import pandas as pd
 import streamlit as st
 import numpy as np
-from cotizacion import *
+from src.services.cotizacion import *
 import json
-from utils import load_existing_ids_from_sheets, log_time
+from src.services.utils import load_existing_ids_from_sheets, log_time
 import pytz
 from datetime import datetime
 import datetime as dt
+from src.services.utils import load_clients
 
 colombia_timezone = pytz.timezone('America/Bogota')
+sheets_creds = Credentials.from_service_account_info(
+        st.secrets["google_sheets_credentials"],
+        scopes=[
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ]
+    )
+
+client_gcp = gspread.authorize(sheets_creds)
+time_sheet_id = st.secrets["general"]["time_sheet_id"]
+
+if "client" not in st.session_state:
+    st.session_state["client"] = None
+
+if "clients_list" not in st.session_state:
+    st.session_state["clients_list"] = []
 
 def get_valid_value(primary, fallback):
     if pd.notna(primary) and str(primary).strip(): 
@@ -19,7 +36,6 @@ def get_valid_value(primary, fallback):
         return fallback
     else:
         return "" 
-
 
 def parse_price(value):
     if isinstance(value, str) and value.strip().upper() == "INCLUIDO":
@@ -90,7 +106,7 @@ def save_to_google_sheets(data, start_time):
             worksheet = sheet.add_worksheet(title=SHEET_NAME, rows="1000", cols="30")
             st.warning(f"Worksheet '{SHEET_NAME}' was created.")
             headers = [
-                "Cotización ID", "Commercial", "Time", "Cliente", "Incoterm", "POL", "POD", "Commodity", "Contrato ID",
+                "Cotización ID", "Commercial", "Time", "Cliente", "Customer Name", "Incoterm", "validity", "POL", "POD", "Commodity", "Contrato ID",
                 "Cargo Types", "Cargo Value", "Surcharges (Costos)", "Surcharges (Ventas)", 
                 "Additional Surcharges (Costos)", "Additional Surcharges (Ventas)", 
                 "Total Cost", "Total Sale", "Total Profit"
@@ -101,15 +117,14 @@ def save_to_google_sheets(data, start_time):
         st.error("The specified Google Sheets document was not found.")
         return
 
-    if not st.session_state.get("request_id"): 
-        st.session_state["request_id"] = generate_request_id()
-
     client = data["client"]
     incoterm = data["incoterm"]
     cargo_types = "\n".join(data["cargo_types"]) 
     cargo_value = data["cargo_value"]
     total_profit = data["total_profit"]
     commercial = data["commercial"]
+    customer_name = data["customer_name"]
+    validity = data["validity"]
 
     total_cost = 0
     total_sale = 0
@@ -157,7 +172,7 @@ def save_to_google_sheets(data, start_time):
         return
 
     row = [
-        st.session_state["request_id"], commercial, end_time_str, client, incoterm, 
+        st.session_state["request_id"], commercial, end_time_str, client, customer_name, incoterm, validity,
         data["pol"], data["pod"], data["commodity"], data["contract_id"],
         cargo_types, cargo_value, surcharge_costs_str, surcharge_sales_str, 
         additional_surcharge_costs_str, additional_surcharge_sales_str,
@@ -170,150 +185,222 @@ def save_to_google_sheets(data, start_time):
 incoterm_op = ['CIF', 'CFR', 'FOB', 'CPT', 'DAP']
 
 @st.dialog("Generate Quotation", width="large")
-def select_options(contrato_id, available_cargo_types, tabla_pivot):
-    if st.session_state.get("start_time") is None:
-        st.session_state["start_time"] = datetime.now(colombia_timezone)
+def select_options(role, contrato_id, available_cargo_types, tabla_pivot):
+    if role in ["commercial", "admin"]:
 
-    start_time = st.session_state["start_time"]
+        if "clients_list" not in st.session_state or not st.session_state["clients_list"]:
+            try:
+                client_data = load_clients()
+                st.session_state["clients_list"] = client_data if client_data else []
+            except Exception as e:
+                st.error(f"Error al cargar la lista de clientes: {e}")
+                st.session_state["clients_list"] = []
 
-    incoterm = st.selectbox('Select Incoterm', incoterm_op, key=f'incoterm_{contrato_id}')
-    client = st.text_input('Client', key=f'client_{contrato_id}')
-    cargo_types = st.multiselect('Select Cargo Type', available_cargo_types, key=f'cargo_{contrato_id}')
+        if st.session_state.get("start_time") is None:
+            st.session_state["start_time"] = datetime.now(colombia_timezone)
 
-    cargo_value = 0.0
-    insurance_cost = 0.0
+        start_time = st.session_state["start_time"]
 
-    if incoterm == "CIF":
-        cargo_value = st.number_input(f'Enter Cargo Value', min_value=0.0, step=0.01, key=f'cargo_value_{contrato_id}')
-        insurance_cost = round(cargo_value * (0.13/100) * 1.04, 2)
-        st.write(f'**Cost of Insurance ${insurance_cost}**')
+        col1, col2 = st.columns(2)
 
-    if not cargo_types:
-        st.warning('Please select a container to continue')
-        return
-
-    available_surcharges = [s for s in tabla_pivot.index if s in ["Origen", "Flete", "Destino", "Hbl", "Switch"]]
-    selected_surcharges = st.multiselect('Select Surcharges', available_surcharges, key=f'surcharges_{contrato_id}')
-    tabla_pivot = tabla_pivot.map(parse_price)
-
-    surcharge_values = {surcharge: {} for surcharge in selected_surcharges}
-    total_profit = 0
-
-    cols = st.columns(len(cargo_types) * 2)
-    for idx, cont in enumerate(cargo_types):
-        with cols[idx * 2]:
-            st.write(f"### {cont}")
-
-    for surcharge in selected_surcharges:
-        cols = st.columns(len(cargo_types) * 2) 
-
-        for idx, cont in enumerate(cargo_types):
-            with cols[idx * 2]:
-                if surcharge in tabla_pivot.index and cont in tabla_pivot.columns:
-                    cost_value = tabla_pivot.at[surcharge, cont]
-                    try:
-                        if isinstance(cost_value, str) and cost_value.upper() == "INCLUIDO":
-                            cost_display = "INCLUIDO"
-                            cost_value = 0.0
-                        else:
-                            cost_value = float(cost_value)
-                            cost_display = f"${cost_value:.2f}"
-                    except (KeyError, ValueError):
-                        cost_display = "Not Available"
-                        cost_value = 0.0
-                else:
-                    cost_display = "Not Available"
-                    cost_value = 0.0
-
-                st.write(f'**Cost of {surcharge}**')
-                st.write(cost_display)
-
-            with cols[idx * 2 + 1]: 
-                sale = st.number_input(f'Sale of {surcharge}', min_value=0.0, step=0.01, key=f'value_{surcharge}_{cont}_{contrato_id}')
-                surcharge_values[surcharge][cont] = sale
-
-            profit = sale - cost_value
-            total_profit += profit
-
-            surcharge_values[surcharge][cont] = {
-                "cost": cost_value,
-                "sale": sale
-            }
-
-    st.write("### Add Additional Surcharges")
-    if "additional_surcharges" not in st.session_state:
-        st.session_state["additional_surcharges"] = []
-
-    if st.button("Add Surcharge"):
-        st.session_state["additional_surcharges"].append({"concept": "", "cost": 0.0, "sale": 0.0})
-
-    def remove_surcharge(index):
-        if 0 <= index < len(st.session_state["additional_surcharges"]):
-            del st.session_state["additional_surcharges"][index]
-
-    to_remove = []
-    for i, surcharge in enumerate(st.session_state["additional_surcharges"]):
-        col1, col2, col3, col4 = st.columns([2.5, 1, 1, 0.5])
         with col1:
-            surcharge["concept"] = st.text_input(f"Concept", surcharge["concept"], key=f'concept_{i}_{contrato_id}')
+            incoterm = st.selectbox('Select Incoterm', incoterm_op, key=f'incoterm_{contrato_id}')
         with col2:
-            surcharge["cost"] = st.number_input(f"Cost", min_value=0.0, step=0.01, key=f'cost_{i}_{contrato_id}')
-        with col3:
-            surcharge["sale"] = st.number_input(f"Sale", min_value=0.0, step=0.01, key=f'sale_{i}_{contrato_id}')
-        with col4:
-            st.write(" ")
-            st.write(" ")
-            st.button("❌", key=f'remove_{i}', on_click=remove_surcharge, args=(i,)) 
+            validity = st.date_input('Quotation Validity', value="today", format="YYYY/MM/DD", key=f'validity_{contrato_id}')
 
-        total_profit += surcharge["sale"] - surcharge["cost"]
-    
-    for i in sorted(to_remove, reverse=True):
-        del st.session_state["additional_surcharges"][i]
-    
-    st.write(f'**Total Profit: ${total_profit:.2f}**')
+        clients_list = st.session_state.get("clients_list", [])
 
-    if st.button("Generate Quotation"):
-        errors = validate_inputs(client, cargo_types, incoterm, cargo_value, selected_surcharges, surcharge_values)
+        col1, col2 = st.columns(2)
+        with col1:
+            client = st.selectbox("Who is your client?*", [" "] + ["+ Add New"] + clients_list, key=f'client_{contrato_id}')
 
-        if errors:
-            for error in errors:
-                st.error(error)
+            new_client_saved = st.session_state.get("new_client_saved", False)
+
+            if client == "+ Add New":
+                st.write("### Add a New Client")
+                new_client_name = st.text_input("Enter the client's name:", key=f"new_client_name_{contrato_id}")
+
+                if st.button("Save Client"):
+                    if new_client_name:
+                        if new_client_name not in st.session_state["clients_list"]:
+                            st.session_state["client"] = new_client_name
+                            st.session_state["new_client_saved"] = True
+                            client = new_client_name
+                            st.success(f"✅ Client '{new_client_name}' saved!")
+                        else:
+                            st.warning(f"⚠️ Client '{new_client_name}' already exists in the list.")
+                    else:
+                        st.error("⚠️ Please enter a valid client name.")
+            else:
+                st.session_state["client"] = client
+        
+        with col2:
+            customer_name = st.text_input("Enter the customer name:", key=f"customer_name_{contrato_id}")
+
+        cargo_types = st.multiselect('Select Cargo Type', available_cargo_types, key=f'cargo_{contrato_id}')
+
+        cargo_value = 0.0
+        insurance_cost = 0.0
+        insurance_sale = 0.0
+
+        if incoterm == "CIF":
+            cargo_value = st.number_input(f'Enter Cargo Value', min_value=0.0, step=0.01, key=f'cargo_value_{contrato_id}')
+            insurance_cost = round(cargo_value * (0.13/100) * 1.04, 2)
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write("**Cost of Insurance**")
+                st.write(f'${insurance_cost}')
+            with col2:
+                insurance_sale = st.number_input(f'Sale of Insurance', min_value=0.0, step=0.01, key=f'insurance_{contrato_id}')
+
+        if not cargo_types:
+            st.warning('Please select a container to continue')
             return
 
-        quotation_data = {
-            "client": client,
-            "incoterm": incoterm,
-            "cargo_types": cargo_types,
-            "cargo_value": cargo_value,
-            "surcharges": surcharge_values,
-            "additional_surcharges": st.session_state["additional_surcharges"],
-            "total_profit": total_profit,
-            "pol": st.session_state["selected_data"].get("POL", ""),
-            "pod": st.session_state["selected_data"].get("POD", ""),
-            "commodity": st.session_state["selected_data"].get("Details", {}).get("Commodities", ""),
-            "commercial": st.session_state["selected_data"].get("Commercial", ""),
-            "contract_id": contrato_id  
-    }
+        available_surcharges = [s for s in tabla_pivot.index if s in ["Origen", "Flete", "Destino", "Hbl", "Switch"]]
+        selected_surcharges = st.multiselect('Select Surcharges', available_surcharges, key=f'surcharges_{contrato_id}')
+        tabla_pivot = tabla_pivot.map(parse_price)
 
-        st.write(quotation_data)
+        surcharge_values = {surcharge: {} for surcharge in selected_surcharges}
+        total_profit = 0
 
-        save_to_google_sheets(quotation_data, start_time)
+        cols = st.columns(len(cargo_types) * 2)
+        for idx, cont in enumerate(cargo_types):
+            with cols[idx * 2]:
+                st.write(f"### {cont}")
 
-        st.success("Quotation saved successfully to Google Sheets!")
+        for surcharge in selected_surcharges:
+            cols = st.columns(len(cargo_types) * 2) 
+
+            for idx, cont in enumerate(cargo_types):
+                with cols[idx * 2]:
+                    if surcharge in tabla_pivot.index and cont in tabla_pivot.columns:
+                        cost_value = tabla_pivot.at[surcharge, cont]
+                        try:
+                            if isinstance(cost_value, str) and cost_value.upper() == "INCLUIDO":
+                                cost_display = "INCLUIDO"
+                                cost_value = 0.0
+                            else:
+                                cost_value = float(cost_value)
+                                cost_display = f"${cost_value:.2f}"
+                        except (KeyError, ValueError):
+                            cost_display = "Not Available"
+                            cost_value = 0.0
+                    else:
+                        cost_display = "Not Available"
+                        cost_value = 0.0
+
+                    st.write(f'**Cost of {surcharge}**')
+                    st.write(cost_display)
+
+                with cols[idx * 2 + 1]: 
+                    sale = st.number_input(f'Sale of {surcharge}', min_value=0.0, step=0.01, key=f'value_{surcharge}_{cont}_{contrato_id}')
+                    surcharge_values[surcharge][cont] = sale
+
+                profit = sale - cost_value
+                total_profit += profit
+
+                surcharge_values[surcharge][cont] = {
+                    "cost": cost_value,
+                    "sale": sale
+                }
+
+        st.write("### Add Additional Surcharges")
+        if "additional_surcharges" not in st.session_state:
+            st.session_state["additional_surcharges"] = []
+
+        if st.button("Add Surcharge"):
+            st.session_state["additional_surcharges"].append({"concept": "", "cost": 0.0, "sale": 0.0})
+
+        def remove_surcharge(index):
+            if 0 <= index < len(st.session_state["additional_surcharges"]):
+                del st.session_state["additional_surcharges"][index]
+
+        to_remove = []
+        for i, surcharge in enumerate(st.session_state["additional_surcharges"]):
+            col1, col2, col3, col4 = st.columns([2.5, 1, 1, 0.5])
+            with col1:
+                surcharge["concept"] = st.text_input(f"Concept", surcharge["concept"], key=f'concept_{i}_{contrato_id}')
+            with col2:
+                surcharge["cost"] = st.number_input(f"Cost", min_value=0.0, step=0.01, key=f'cost_{i}_{contrato_id}')
+            with col3:
+                surcharge["sale"] = st.number_input(f"Sale", min_value=0.0, step=0.01, key=f'sale_{i}_{contrato_id}')
+            with col4:
+                st.write(" ")
+                st.write(" ")
+                st.button("❌", key=f'remove_{i}', on_click=remove_surcharge, args=(i,)) 
+
+            total_profit += surcharge["sale"] - surcharge["cost"]
         
-        pdf_filename = generate_quotation(quotation_data)
+        for i in sorted(to_remove, reverse=True):
+            del st.session_state["additional_surcharges"][i]
+        
+        st.write(f'**Total Profit: ${total_profit:.2f}**')
 
-        with open(pdf_filename, "rb") as f:
-            pdf_bytes = f.read()
+        if st.button("Generate Quotation"):
+            errors = validate_inputs(client, cargo_types, incoterm, cargo_value, selected_surcharges, surcharge_values)
 
-        st.download_button(
-            label="Descargar Cotización",
-            data=pdf_bytes,
-            file_name="quotation.pdf",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+            if errors:
+                for error in errors:
+                    st.error(error)
+                return
 
-def show():
+            if not st.session_state.get("request_id"): 
+                st.session_state["request_id"] = generate_request_id()
+
+            quotation_data = {
+                "request_id": st.session_state.get("request_id"),
+                "client": st.session_state.get("client", client),
+                "customer_name": customer_name,
+                "incoterm": incoterm,
+                "validity": validity.strftime("%d/%m/%Y"),
+                "cargo_types": cargo_types,
+                "cargo_value": cargo_value,
+                "insurance_sale": insurance_sale,
+                "surcharges": surcharge_values,
+                "additional_surcharges": st.session_state["additional_surcharges"],
+                "total_profit": total_profit,
+                "pol": st.session_state["selected_data"].get("POL", ""),
+                "pod": st.session_state["selected_data"].get("POD", ""),
+                "commodity": st.session_state["selected_data"].get("Details", {}).get("Commodities", ""),
+                "commercial": st.session_state["selected_data"].get("Commercial", ""),
+                "contract_id": contrato_id  ,
+                "Details": st.session_state["selected_data"].get("Details", {}),
+                "Notes": st.session_state["selected_data"].get("Notes", "")
+        }
+            st.write(quotation_data)
+
+            save_to_google_sheets(quotation_data, start_time)
+
+            st.success("Information succesfully saved!")
+
+            client_normalized = st.session_state.get("client", client).strip().lower() if client else ""
+
+            if client_normalized and all(c.strip().lower() != client_normalized for c in st.session_state["clients_list"]):
+                sheet = client_gcp.open_by_key(time_sheet_id)
+                worksheet = sheet.worksheet("clientes")
+                worksheet.append_row([st.session_state.get("client", client)])
+                st.session_state["clients_list"].append(client)
+                st.session_state["client"] = None
+                load_clients.clear()
+                st.rerun()
+
+            pdf_filename = generate_quotation(quotation_data)
+
+            with open(pdf_filename, "rb") as f:
+                pdf_bytes = f.read()
+
+            st.download_button(
+                label="Download Quotation",
+                data=pdf_bytes,
+                file_name="quotation.pdf",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+    else:
+        st.write('You cannot to download quotations. Please contact the support team')
+        st.write('datasupport@tradingsol.com')
+
+def show(role):
     email = st.experimental_user.email
     scrap_team = ["bds@tradingsol.com", "insidesales@tradingsol.com"]
 
@@ -329,7 +416,7 @@ def show():
 
     else: 
         SPREADSHEET_ID = st.secrets["general"]["contratos_id"]
-        SHEET_NAMES = ["CONTENEDORES", "TARIFAS SCRAP EXPO"]
+        SHEET_NAMES = ["Mejoras Q2", "TARIFAS SCRAP EXPO"]
 
         credentials = Credentials.from_service_account_info(
             st.secrets["contratos_credentials"],
@@ -352,8 +439,8 @@ def show():
             return {sheet: load_data_from_gsheets(SPREADSHEET_ID, sheet) for sheet in sheet_names}
 
         data_frames = get_all_data(SHEET_NAMES)
-        contratos_df = data_frames["CONTENEDORES"]
-        contratos_df = contratos_df[~contratos_df["Estado"].isin(["NO APROBADO", "EN PAUSA"])]
+        contratos_df = data_frames["Mejoras Q2"]
+        #contratos_df = contratos_df[~contratos_df["Estado"].isin(["NO APROBADO", "EN PAUSA"])]
 
         tarifas_scrap = data_frames["TARIFAS SCRAP EXPO"]
 
@@ -481,7 +568,7 @@ def show():
                                         else:
                                             available_cargo_types = tabla_pivot.columns.unique().tolist()
 
-                                        tabla_pivot.rename_axis("CONCEPTO", inplace=True)
+                                        tabla_pivot.rename_axis("CONCEPT", inplace=True)
                                         nuevo_orden =  ["ORIGEN", "FLETE", "DESTINO", "TOTAL FLETE Y ORIGEN", "HBL", "Switch", "TOTAL FLETE, ORIGEN Y DESTINO", "TOTAL FLETE, ORIGEN Y SWITCH O HBL"]
                                         tabla_pivot = tabla_pivot.reindex(nuevo_orden)
                                         tabla_pivot.index = tabla_pivot.index.map(lambda x: x.capitalize() if isinstance(x, str) else x)
@@ -515,9 +602,10 @@ def show():
                                             "POL": p_origen,
                                             "POD": p_destino,
                                             "Contract ID": contrato_id,
-                                            "Details": fields
+                                            "Details": fields,
+                                            "Notes": notas_formateadas
                                         }
-                                        select_options(contrato_id, available_cargo_types, tabla_pivot)
+                                        select_options(role, contrato_id, available_cargo_types, tabla_pivot)
 
                         st.write("\n")
             else:

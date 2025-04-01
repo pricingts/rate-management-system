@@ -2,14 +2,13 @@ import streamlit as st
 import pandas as pd
 from google.oauth2.service_account import Credentials
 import gspread
-from utils import *
+from src.services.utils import *
 from googleapiclient.discovery import build
 import pytz
 from datetime import datetime
 import random
 import string
 import os
-from utils import get_name
 
 def show():
 
@@ -78,13 +77,13 @@ def show():
 
         if "ports_csv" not in st.session_state or st.session_state["ports_csv"] is None:
             try:
-                st.session_state["ports_csv"] = load_csv("data/output_port_world.csv")
+                st.session_state["ports_csv"] = load_csv("resources/data/output_port_world.csv")
             except Exception as e:
                 st.error("Error loading CSV data. Please check the file path or format.")
 
         if "cities_csv" not in st.session_state or st.session_state["cities_csv"] is None:
             try:
-                st.session_state["cities_csv"] = load_csv("data/cities_world.csv")
+                st.session_state["cities_csv"] = load_csv("resources/data/cities_world.csv")
             except Exception as e:
                 st.error("Error loading CSV data. Please check the file path or format.")
 
@@ -139,7 +138,7 @@ def show():
         if st.session_state["page"] == "client_name":
 
             sales_rep = st.session_state.get("sales_rep", "-- Sales Representative --")
-            st.subheader(f"Hello, {sales_rep}!")
+            #st.subheader(f"Hello, {sales_rep}!")
 
             if "clients_list" not in st.session_state or not st.session_state["clients_list"]:
                 try:
@@ -562,7 +561,7 @@ def show():
                                                     volume_label = "CBM"
 
                                                 pallet_str = (
-                                                    f"Package {i + 1}: Type: {p['type_packaging']}, Quantity: {p['quantity']}, "
+                                                    f"{p['quantity']} {p['type_packaging']},  "
                                                     f"Unit Weight: {p['weight_lcl']:.2f} {weight_unit}, Total Weight: {p['total_weight']:.2f} KG,"
                                                     f"Volume: {volume_value:.2f} {volume_label}, "
                                                     f"Dimensions: {p['length']:.2f} {length_unit} x {p['width']:.2f} {length_unit} x {p['height']:.2f} {length_unit}"

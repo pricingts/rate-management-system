@@ -73,9 +73,8 @@ def check_authentication():
         st.session_state.authenticated = False
 
     if not st.session_state.authenticated:
-        st.warning("Por favor, inicia sesión primero.")
-
         if not st.experimental_user.is_logged_in:
+            st.warning("Por favor, inicia sesión primero.")
             if st.button("Log in ➡️"):
                 st.login()
             st.stop()
