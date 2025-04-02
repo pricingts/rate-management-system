@@ -21,6 +21,9 @@ def identity_role(email):
     admin = [
         "manager@tradingsol.com", "pricing10@tradingsol.com", "pricing2@tradingsol.com", "pricing@tradingsol.com"
     ]
+    inside_sales = [
+        "pricing7@tradingsol.com", "traffic2@tradingsol.com", "customer3@tradingsol.com"
+    ]
 
     if email in commercial:
         return "commercial"
@@ -30,13 +33,15 @@ def identity_role(email):
         return "ground"
     elif email in admin:
         return "admin"
+    elif email in inside_sales:
+        return "inside_sales"
     else:
         return None
 
 @st.dialog("Warning", width="large")
 def non_identiy():
     st.write("Dear user, it appears that you do not have an assigned role on the platform. This might restrict your access to certain features. Please contact the support team to have the appropriate role assigned. Thank you!")
-    st.write("datasupport@tradingsol.com")
+    st.write("pricing@tradingsol.com")
 
 col1, col2, col3 = st.columns([1, 2, 1])
 
@@ -53,7 +58,7 @@ else:
 
     if role in ["commercial", "admin"]:
         with st.sidebar:
-            page = st.radio("Go to", ["Home", "Contracts Management", "Your Quotations", "New Request"])
+            page = st.radio("Go to", ["Home", "Contracts Management", "Your Quotations", "New Request", "Download Payment Request"])
 
         if page == "Contracts Management":
             import src.views.Contracts_Management as cm
@@ -65,11 +70,15 @@ else:
 
         elif page == "New Request":
             import src.views.New_Request as quotes
-            quotes.show()
+            quotes.show(role)
 
-    elif role in ["pricing", "ground"]:
+        elif page == "Download Payment Request":
+            import src.views.Payment_Request as pay
+            pay.show(role)
+
+    elif role in ["pricing", "ground", "inside_sales"]:
         with st.sidebar:
-            page = st.radio("Go to", ["Home", "Contracts Management", "Your Quotations"])
+            page = st.radio("Go to", ["Home", "Contracts Management", "Your Quotations", "Download Payment Request"])
 
         if page == "Contracts Management":
             import src.views.Contracts_Management as cm
@@ -78,3 +87,7 @@ else:
         elif page == "Your Quotations":
             import src.views.Your_Quotations as pricing 
             pricing.show(role)
+
+        elif page == "Download Payment Request":
+            import src.views.Payment_Request as pay 
+            pay.show(role)

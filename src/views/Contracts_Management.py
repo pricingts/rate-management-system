@@ -477,19 +477,31 @@ def show(role):
                 destinos_disponibles = merged_df[merged_df["POL"] == st.session_state.p_origen]["POD"].unique()
                 st.session_state.p_destino = st.selectbox("POD", destinos_disponibles)
 
-        if st.session_state.p_origen and st.session_state.p_destino:
-            filtered_commodities = merged_df[
-                (merged_df["POL"] == st.session_state.p_origen) & 
-                (merged_df["POD"] == st.session_state.p_destino)
-            ]["COMMODITIES"].dropna().unique()
-            st.session_state.commodity_contracts = st.multiselect("Select Commodities", filtered_commodities)
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.session_state.p_origen and st.session_state.p_destino:
+                filtered_commodities = merged_df[
+                    (merged_df["POL"] == st.session_state.p_origen) & 
+                    (merged_df["POD"] == st.session_state.p_destino)
+                ]["COMMODITIES"].dropna().unique()
+                st.session_state.commodity_contracts = st.multiselect("Select Commodities", filtered_commodities)
+        with col2:
+            if st.session_state.p_origen and st.session_state.p_destino:
+                filtered_cont = merged_df[
+                    (merged_df["POL"] == st.session_state.p_origen) & 
+                    (merged_df["POD"] == st.session_state.p_destino) &
+                    (merged_df["COMMODITIES"].isin(st.session_state.commodity_contracts))
+                ]["TIPO CONT"].dropna().unique()
+                st.session_state.tipo_cont = st.multiselect("Select Container Type", filtered_cont)
 
         if st.session_state.p_origen and st.session_state.p_destino:
             p_origen = st.session_state.p_origen
             p_destino = st.session_state.p_destino
             commodity = st.session_state.commodity_contracts
+            tipo_cont = st.session_state.tipo_cont
 
-            contratos = merged_df[(merged_df["POL"] == p_origen) & (merged_df["POD"] == p_destino) & (merged_df["COMMODITIES"].isin(commodity)) ]
+            contratos = merged_df[(merged_df["POL"] == p_origen) & (merged_df["POD"] == p_destino) & (merged_df["COMMODITIES"].isin(commodity)) & (merged_df["TIPO CONT"].isin(tipo_cont))]
 
             if not contratos.empty:
                 hoy = dt.datetime.now()
@@ -508,7 +520,7 @@ def show(role):
 
                         for idx, ((linea, contrato_id), contrato_rows) in enumerate(row_contracts):
                             with columnas[idx]:
-                                with st.expander(f"🚢 **{linea} - {contrato_id}**", expanded=True):
+                                with st.expander(f"🚢 **{linea} - {contrato_id.strip()}**", expanded=True):
                                     contrato_info = contrato_rows.iloc[0]
                                     fields = {
                                         "Shipping Line": contrato_info.get("Línea", ""),
@@ -520,6 +532,7 @@ def show(role):
                                         "Transit Time": contrato_info.get("TT", ""),
                                         "Route": contrato_info.get("RUTA", ""),
                                         "Suitable Food": contrato_info.get("APTO ALIMENTO", ""),
+                                        "Valid to": contrato_info.get("FECHA FIN FLETE", "").strftime("%Y-%m-%d") if pd.notnull(contrato_info.get("FECHA FIN FLETE", "")) else ""
                                     }
 
                                     col3, col4 = st.columns(2)
@@ -608,5 +621,7 @@ def show(role):
                                         select_options(role, contrato_id, available_cargo_types, tabla_pivot)
 
                         st.write("\n")
+                else:
+                    st.warning("⚠️ There are not active contracts")
             else:
                 st.warning("⚠️ There are not active contracts")
