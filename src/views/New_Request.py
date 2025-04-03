@@ -10,7 +10,7 @@ import random
 import string
 import os
 
-def show():
+def show(role):
 
     sheet_id = st.secrets["general"]["quotations_requested"]
     DRIVE_ID = st.secrets["general"]["drive_id"]

@@ -34,24 +34,24 @@ def create_overlay(data, overlay_path):
 
     c.setFont("OpenSauceBold", 10)
 
-    c.drawString(508, 688, f"{data.get('request_id', '')}")
-    c.drawString(460, 675, fecha_str)
-    c.drawString(475, 662,f"{data.get('validity', '')}")
+    c.drawString(508, 688, f"{data.get('quotation', '')}")
+    c.drawString(440, 675, fecha_str)
+    c.drawString(460, 665,f"{data.get('validity', '')}")
 
     c.setFont("OpenSauce", 10)
-    c.drawString(90, 570, f"{commercial_data.get('name', '')}")
-    c.drawString(90, 560, f"{commercial_data.get('position', '')}")
-    c.drawString(90, 550, f"{commercial_data.get('tel', '')}")
-    c.drawString(90, 540, f"{commercial_data.get('email', '')}")
+    c.drawString(90, 585, f"{commercial_data.get('name', '')}")
+    c.drawString(90, 573, f"{commercial_data.get('position', '')}")
+    c.drawString(90, 561, f"{commercial_data.get('tel', '')}")
+    c.drawString(90, 549, f"{commercial_data.get('email', '')}")
 
-    c.drawString(400, 570, f"{data.get('customer_name', '')}")
+    c.drawString(400, 585, f"{data.get('customer_name', '')}")
 
-    c.drawString(160, 470, f"MARITIME")
-    c.drawString(160, 457, f"{data.get('incoterm', '')}")
-    c.drawString(160, 444, f"{data.get('pol', '').upper()} - {data.get('pod', '').upper()}")
+    c.drawString(160, 495, f"MARITIME")
+    c.drawString(160, 482, f"{data.get('incoterm', '')}")
+    c.drawString(160, 469, f"{data.get('pol', '').upper()} - {data.get('pod', '').upper()}")
 
     c.setFont("OpenSauceBold", 10) 
-    c.drawString(400, 588, f"{data.get('client', '').upper()}")
+    c.drawString(400, 603, f"{data.get('client', '').upper()}")
 
     table_data = []
     total_sale = 0.0
@@ -82,6 +82,18 @@ def create_overlay(data, overlay_path):
         ]
         table_data.append(row)
     
+    insurance = data.get("insurance_sale", 0)
+    if insurance:
+        total_sale += insurance
+        row = [
+            "Insurance",
+            "USD",
+            "",
+            f"${insurance}"
+        ]
+        table_data.append(row)
+
+    
     col_widths = [80, 140, 120, 85]
 
     table = Table(table_data, colWidths=col_widths)
@@ -97,14 +109,14 @@ def create_overlay(data, overlay_path):
     table.setStyle(style)
 
     x = 100
-    y = 388
+    y = 425
     table_width, table_height = table.wrapOn(c, 0, 0)
     table.drawOn(c, x, y - table_height)
 
-    c.setFont("OpenSauceBold", 11)
-    c.drawString(400, 270, f"${total_sale} USD")
+    c.setFont("OpenSauceBold", 10)
+    c.drawString(400, 200, f"TOTAL ${total_sale} USD")
 
-    y_position = 200
+    y_position = 150
     c.setFont("OpenSauce", 9)
     c.drawString(88, y_position, f"Transit Time: {data.get('Details', {}).get('Transit Time', 'N/A')} days")
     c.drawString(88, y_position - 10, f"Route: {data.get('Details', {}).get('Route', 'N/A')}")
@@ -129,7 +141,7 @@ def merge_pdfs(template_path, overlay_path, output_path):
     with open(output_path, "wb") as f_out:
         output.write(f_out)
 
-def generate_quotation(data, template_path="resources/documents/plantilla2.pdf", output_path="resources/documents/quotation.pdf", overlay_path="resources/documents/overlay.pdf"):
+def generate_quotation(data, template_path="resources/documents/Quotations forms.pdf", output_path="resources/documents/quotation.pdf", overlay_path="resources/documents/overlay.pdf"):
     create_overlay(data, overlay_path)
     merge_pdfs(template_path, overlay_path, output_path)
     return output_path

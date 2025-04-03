@@ -106,10 +106,10 @@ def save_to_google_sheets(data, start_time):
             worksheet = sheet.add_worksheet(title=SHEET_NAME, rows="1000", cols="30")
             st.warning(f"Worksheet '{SHEET_NAME}' was created.")
             headers = [
-                "Cotización ID", "Commercial", "Time", "Cliente", "Customer Name", "Incoterm", "validity", "POL", "POD", "Commodity", "Contrato ID",
-                "Cargo Types", "Cargo Value", "Surcharges (Costos)", "Surcharges (Ventas)", 
-                "Additional Surcharges (Costos)", "Additional Surcharges (Ventas)", 
-                "Total Cost", "Total Sale", "Total Profit"
+                "REQUEST_ID", "COMMERCIAL", "TIME", "CLIENT", "CUSTOMER_NAME", "INCOTERM", "VALIDITY", "POL", "POD", "COMMODITY", "CONTRATO_ID",
+                "CARGO_TYPES", "CARGO_VALUE", "SURCHARGES (COSTOS)", "SURCHARGES (VENTAS)", 
+                "ADDITIONAL_SURCHARGES (Costos)", "ADDITIONAL_SURCHARGES (Ventas)", 
+                "TOTAL_COST", "TOTAL_SALE", "TOTAL_PROFIT"
             ]
 
             worksheet.append_row(headers)
@@ -368,7 +368,7 @@ def select_options(role, contrato_id, available_cargo_types, tabla_pivot):
                 "Details": st.session_state["selected_data"].get("Details", {}),
                 "Notes": st.session_state["selected_data"].get("Notes", "")
         }
-            st.write(quotation_data)
+            #st.write(quotation_data)
 
             save_to_google_sheets(quotation_data, start_time)
 

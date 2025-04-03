@@ -199,7 +199,9 @@ def show(role):
             df_filtered = pd.DataFrame()
         else:
             df_full = prepare_dataframe(df_full)
-            df_filtered = df_full.copy()
+
+            df_full['TIME'] = pd.to_datetime(df_full['TIME'], format='%d/%m/%Y %H:%M:%S')
+            df_full = df_full.sort_values(by='TIME', ascending=False)
 
             initialize_filters(key_prefix)
 
@@ -231,6 +233,9 @@ def show(role):
             df_filtered = pd.DataFrame()
 
         else:
+            df_full['Time'] = pd.to_datetime(df_full['Time'], format='%Y-%m-%d %H:%M:%S')
+            df_full = df_full.sort_values(by='Time', ascending=False)
+
             initialize_filters(key_prefix)
 
             col1, col2 = st.columns(2)
@@ -313,7 +318,9 @@ def show(role):
                 df_filtered = pd.DataFrame()
             else:
                 df_full = prepare_dataframe(df_full)
-                df_filtered = df_full.copy()
+
+                df_full['TIME'] = pd.to_datetime(df_full['TIME'], format='%Y-%m-%d %H:%M:%S')
+                df_full = df_full.sort_values(by='TIME', ascending=False)
 
                 initialize_filters(key_prefix)
 
@@ -324,5 +331,3 @@ def show(role):
 
     if st.session_state.get("open_dialog", False):
         show_dialog()
-
-
