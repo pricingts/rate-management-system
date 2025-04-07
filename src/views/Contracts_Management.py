@@ -257,7 +257,7 @@ def select_options(role, contrato_id, available_cargo_types, tabla_pivot):
             st.warning('Please select a container to continue')
             return
 
-        available_surcharges = [s for s in tabla_pivot.index if s in ["Origen", "Flete", "Destino", "Hbl", "Switch"]]
+        available_surcharges = [s for s in tabla_pivot.index if s in ["Origin", "Freight", "Destination", "Hbl", "Switch"]]
         selected_surcharges = st.multiselect('Select Surcharges', available_surcharges, key=f'surcharges_{contrato_id}')
         tabla_pivot = tabla_pivot.map(parse_price)
 
@@ -565,6 +565,18 @@ def show(role):
 
                                     # 🔹 Generar la tabla de costos
                                     columnas_clave = ["ORIGEN", "FLETE", "DESTINO", "TOTAL FLETE Y ORIGEN", "HBL", "Switch", "TOTAL FLETE, ORIGEN Y DESTINO", "TOTAL FLETE, ORIGEN Y SWITCH O HBL"]
+
+                                    traducciones = {
+                                        "ORIGEN": "ORIGIN",
+                                        "FLETE": "FREIGHT",
+                                        "DESTINO": "DESTINATION",
+                                        "TOTAL FLETE Y ORIGEN": "TOTAL FREIGHT AND ORIGIN",
+                                        "HBL": "HBL",
+                                        "Switch": "SWITCH",
+                                        "TOTAL FLETE, ORIGEN Y DESTINO": "TOTAL FREIGHT, ORIGIN AND DESTINATION",
+                                        "TOTAL FLETE, ORIGEN Y SWITCH O HBL": "TOTAL FREIGHT, ORIGIN AND SWITCH OR HBL"
+                                    }
+
                                     contrato_rows_validos = contrato_rows.dropna(subset=columnas_clave, how="all")
 
                                     if not contrato_rows_validos.empty:
@@ -584,6 +596,7 @@ def show(role):
                                         tabla_pivot.rename_axis("CONCEPT", inplace=True)
                                         nuevo_orden =  ["ORIGEN", "FLETE", "DESTINO", "TOTAL FLETE Y ORIGEN", "HBL", "Switch", "TOTAL FLETE, ORIGEN Y DESTINO", "TOTAL FLETE, ORIGEN Y SWITCH O HBL"]
                                         tabla_pivot = tabla_pivot.reindex(nuevo_orden)
+                                        tabla_pivot.index = tabla_pivot.index.map(lambda x: traducciones.get(x, x))
                                         tabla_pivot.index = tabla_pivot.index.map(lambda x: x.capitalize() if isinstance(x, str) else x)
                                         tabla_pivot.dropna(how="all", inplace=True)
                                         tabla_pivot = tabla_pivot.astype(str)
