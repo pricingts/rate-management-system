@@ -185,7 +185,10 @@ def show(role):
             st.header("Quotations Requested")
         with col2:
             st.write(" ")
-            st.button("Clear Filters", on_click= lambda:clear_filters(key_prefix), key=f"clear_requested")
+            if st.button("Clear Filters", key="clear_requested"):
+                clear_filters(key_prefix)
+                st.rerun()
+
         with col3:
             st.write(" ")
             if st.button("Refresh Data", key="button_2"):
@@ -220,7 +223,9 @@ def show(role):
             st.header("Contracts Quotations")
         with col2:
             st.write(" ")
-            st.button("Clear Filters", on_click= lambda:clear_filters(key_prefix), key=f"clear_contracts")
+            if st.button("Clear Filters", key="clear_contracts"):
+                clear_filters(key_prefix)
+                st.rerun()
         with col3:
             st.write(" ")
             if st.button("Refresh Data", key="button_3"):
@@ -298,7 +303,9 @@ def show(role):
                 st.header("Ground Quotations")
             with col2:
                 st.write(" ")
-                st.button("Clear Filters", on_click= lambda:clear_filters(key_prefix), key=f"clear_ground")
+                if st.button("Clear Filters", key="clear_ground"):
+                    clear_filters(key_prefix)
+                    st.rerun()
             with col3:
                 st.write(" ")
                 if st.button("Refresh Data", key="button_4"):
@@ -327,7 +334,7 @@ def show(role):
                 selected_origen, selected_destino, selected_service, selected_transport, selected_container, selected_client = create_filters(df_full, key_prefix)
                 df_filtered = apply_filters(df_full, selected_origen, selected_destino, selected_client, selected_service, selected_container, selected_transport)
                 show_metrics(df_filtered)
-                show_grid(df_filtered, "ground")
+                show_grid(df_filtered, key_prefix)
 
     if st.session_state.get("open_dialog", False):
         show_dialog()

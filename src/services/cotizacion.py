@@ -34,7 +34,7 @@ def create_overlay(data, overlay_path):
 
     c.setFont("OpenSauceBold", 10)
 
-    c.drawString(508, 688, f"{data.get('quotation', '')}")
+    c.drawString(480, 688, f"{data.get('request_id', '')}")
     c.drawString(440, 675, fecha_str)
     c.drawString(460, 665,f"{data.get('validity', '')}")
 
@@ -117,12 +117,59 @@ def create_overlay(data, overlay_path):
     c.drawString(400, 200, f"TOTAL ${total_sale} USD")
 
     y_position = 150
+    notes = data.get("Notes", " ")
+    notes_separated = ",".join(notes.splitlines())
+
+    left_x = 88            
+    right_x = 300          
+    start_y = y_position   
+    line_space = 10        
+    c.setFont("OpenSauceBold", 9)
+    c.drawString(left_x, start_y, "Transit Time:")
+
     c.setFont("OpenSauce", 9)
-    c.drawString(88, y_position, f"Transit Time: {data.get('Details', {}).get('Transit Time', 'N/A')} days")
-    c.drawString(88, y_position - 10, f"Route: {data.get('Details', {}).get('Route', 'N/A')}")
-    c.drawString(88, y_position - 20, f"Free Days in Origin: {data.get('Details', {}).get('Free Days in Origin', 'N/A')}")
-    c.drawString(88, y_position - 30, f"Free Days in Destination: {data.get('Details', {}).get('Free Days in Destination', 'N/A')}")
-    c.drawString(88, y_position - 40, data.get('Details', {}).get('Notes', ' '))
+    transit = data.get('Details', {}).get('Transit Time', 'N/A')
+    c.drawString(left_x + 65, start_y, f"{transit} days")
+
+    c.setFont("OpenSauceBold", 9)
+    c.drawString(left_x, start_y - line_space, "Route:")
+    c.setFont("OpenSauce", 9)
+    route = data.get('Details', {}).get('Route', 'N/A')
+    c.drawString(left_x + 38, start_y - line_space, route)
+
+    c.setFont("OpenSauceBold", 9)
+    c.drawString(right_x, start_y, "Free Days in Origin:")
+    c.setFont("OpenSauce", 9)
+    free_origin = data.get('Details', {}).get('Free Days in Origin', 'N/A')
+    c.drawString(right_x + 95, start_y, free_origin)
+
+    c.setFont("OpenSauceBold", 9)
+    c.drawString(right_x, start_y - line_space, "Free Days in Destination:")
+    c.setFont("OpenSauce", 9)
+    free_dest = data.get('Details', {}).get('Free Days in Destination', 'N/A')
+    c.drawString(right_x + 115, start_y - line_space, free_dest)
+
+    x = 88                   
+    y = y_position - 25          
+    max_width = 500               
+    font_name = "OpenSauce"
+    font_size = 9
+
+    words = [w.strip() for w in notes_separated.split(",")]
+    line = ""
+
+    for word in words:
+        sep = ", " if line != "" else ""
+        test_line = line + sep + word
+        if c.stringWidth(test_line, font_name, font_size) <= max_width:
+            line = test_line
+        else:
+            c.drawString(x, y, line)
+            y -= font_size * 1.2 
+            line = word
+
+    if line:
+        c.drawString(x, y, line)
 
     c.save()
 

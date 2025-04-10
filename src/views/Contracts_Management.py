@@ -368,7 +368,7 @@ def select_options(role, contrato_id, available_cargo_types, tabla_pivot):
                 "Details": st.session_state["selected_data"].get("Details", {}),
                 "Notes": st.session_state["selected_data"].get("Notes", "")
         }
-            #st.write(quotation_data)
+            st.write(quotation_data)
 
             save_to_google_sheets(quotation_data, start_time)
 
@@ -485,7 +485,10 @@ def show(role):
                     (merged_df["POL"] == st.session_state.p_origen) & 
                     (merged_df["POD"] == st.session_state.p_destino)
                 ]["COMMODITIES"].dropna().unique()
-                st.session_state.commodity_contracts = st.multiselect("Select Commodities", filtered_commodities)
+
+                st.session_state.commodity_contracts = st.multiselect("Select Commodities", 
+                options=filtered_commodities, 
+                default=list(filtered_commodities))
         with col2:
             if st.session_state.p_origen and st.session_state.p_destino:
                 filtered_cont = merged_df[
@@ -493,7 +496,9 @@ def show(role):
                     (merged_df["POD"] == st.session_state.p_destino) &
                     (merged_df["COMMODITIES"].isin(st.session_state.commodity_contracts))
                 ]["TIPO CONT"].dropna().unique()
-                st.session_state.tipo_cont = st.multiselect("Select Container Type", filtered_cont)
+                st.session_state.tipo_cont = st.multiselect("Select Container Type", 
+                                                options=filtered_cont, 
+                                                default=list(filtered_cont))
 
         if st.session_state.p_origen and st.session_state.p_destino:
             p_origen = st.session_state.p_origen
