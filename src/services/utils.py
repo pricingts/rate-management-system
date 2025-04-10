@@ -956,28 +956,28 @@ def final_questions():
     if "final_comments" not in st.session_state:
         st.session_state.final_comments = st.session_state.get("temp_details", {}).get("final_comments", "")
 
-    if "volumen_num" not in st.session_state or not isinstance(st.session_state.get("volumen_num"), int):
-        st.session_state.volumen_num = st.session_state.get("temp_details", {}).get("volumen_num", 0) or 0
+    # if "volumen_num" not in st.session_state or not isinstance(st.session_state.get("volumen_num"), int):
+    #     st.session_state.volumen_num = st.session_state.get("temp_details", {}).get("volumen_num", 0) or 0
     
-    if "volumen_frequency" not in st.session_state:
-        st.session_state.volumen_frequency = st.session_state.get("temp_details", {}).get("volumen_frequency", "")
+    # if "volumen_frequency" not in st.session_state:
+    #     st.session_state.volumen_frequency = st.session_state.get("temp_details", {}).get("volumen_frequency", "")
     
-    freq_op = ["Weekly", "Monthly"]
+    # freq_op = ["Weekly", "Monthly"]
 
-    st.write("**Cargo Volume**")
-    col1, col2 = st.columns(2)
-    with col1:
-        volumen_num = st.number_input(
-            "Quantity", key="volumen_num", value=int(st.session_state.volumen_num), min_value=0, step=1
-        ) 
+    # st.write("**Cargo Volume**")
+    # col1, col2 = st.columns(2)
+    # with col1:
+    #     volumen_num = st.number_input(
+    #         "Quantity", key="volumen_num", value=int(st.session_state.volumen_num), min_value=0, step=1
+    #     ) 
 
-    with col2:
-        volumen_frequency = st.selectbox(
-            "Frequency",
-            options=[""] + freq_op,
-            index=([""] + freq_op).index(st.session_state.volumen_frequency) if st.session_state.volumen_frequency in freq_op else 0,
-            key="volumen_frequency"
-        ) 
+    # with col2:
+    #     volumen_frequency = st.selectbox(
+    #         "Frequency",
+    #         options=[""] + freq_op,
+    #         index=([""] + freq_op).index(st.session_state.volumen_frequency) if st.session_state.volumen_frequency in freq_op else 0,
+    #         key="volumen_frequency"
+    #     ) 
     final_comments = st.text_area("Final Comments", key="final_comments", value=st.session_state.final_comments)
 
     additional_documents = st.file_uploader("Attach Additional Documents", accept_multiple_files=True, key="additional_documents_files")
@@ -987,8 +987,8 @@ def final_questions():
         additional_documents_files = [save_file_locally(file) for file in additional_documents]
 
     return {
-        "volumen_num": volumen_num,
-        "volumen_frequency": volumen_frequency,
+        # "volumen_num": volumen_num,
+        # "volumen_frequency": volumen_frequency,
         "final_comments": final_comments,
         "additional_documents_files": additional_documents_files
     }
@@ -1637,18 +1637,20 @@ def clean_service_data(service_data):
     return {key: value for key, value in service_data.items() if key in allowed_keys}
 
 def get_name(user):
-    name_mapping = {
-        "pricing@tradingsol.com": "Shadia Jaafar",
-        "sales2@tradingsol.com": "Sharon Zuñiga",
-        "sales1@tradingsol.com": "Irina Paternina",
-        "sales3@tradingsol.com": "Johnny Farah", 
-        "sales4@tradingsol.com": "Jorge Sánchez",
-        "sales@tradingsol.com": "Pedro Luis Bruges",
-        "sales5@tradingsol.com": "Ivan Zuluaga", 
-        "manager@tradingsol.com": "Andrés Consuegra",
-        "bds@tradingsol.com": "Stephanie Bruges",
-        "insidesales@tradingsol.com": "Catherine Silva"
+    user_mapping = {
+        "pricing": "Shadia Jaafar",
+        "sales2": "Sharon Zuñiga",
+        "sales1": "Irina Paternina",
+        "sales3": "Johnny Farah", 
+        "sales4": "Jorge Sánchez",
+        "sales": "Pedro Luis Bruges",
+        "sales5": "Ivan Zuluaga", 
+        "sales6": "Felipe Hoyos",
+        "manager": "Andrés Consuegra",
+        "bds": "Stephanie Bruges",
+        "insidesales": "Catherine Silva"
     }
 
-    return name_mapping.get(user, None)
+    username = user.split("@")[0]
+    return user_mapping.get(username, None)
 

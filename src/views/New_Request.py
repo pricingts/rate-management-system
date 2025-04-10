@@ -133,7 +133,8 @@ def show(role):
 
         start_time = st.session_state["start_time"]
 
-        st.session_state["sales_rep"] = st.experimental_user.name
+        email = st.experimental_user.email
+        name = get_name(email)
 
         if st.session_state["page"] == "client_name":
 

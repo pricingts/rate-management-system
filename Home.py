@@ -1,42 +1,45 @@
 import streamlit as st
 import pandas as pd
 from src.services.auth import check_authentication
+from collections import defaultdict
 
 st.set_page_config(page_title="Rate Management System", layout="wide")
 
 def identity_role(email):
-    commercial = [
-        "sales2@tradingsol.com", "sales1@tradingsol.com", "sales3@tradingsol.com",
-        "sales4@tradingsol.com", "sales@tradingsol.com", "sales5@tradingsol.com",
-        "bds@tradingsol.com", "insidesales@tradingsol.com"
-    ]
-    pricing = [
-        "pricing2@tradingsol.com", "pricing8@tradingsol.com",
-        "pricing6@tradingsol.com", "pricing10@tradingsol.com", "pricing11@tradingsol.com",
-        "customer9@tradingsol.com",
-    ]
-    ground = [
-        "ground@tradingsol.com", "customer5@tradingsol.com", "ground1@tradingsol.com"
-    ]
-    admin = [
-        "manager@tradingsol.com", "pricing10@tradingsol.com", "pricing2@tradingsol.com", "pricing@tradingsol.com"
-    ]
-    inside_sales = [
-        "pricing7@tradingsol.com", "traffic2@tradingsol.com", "customer3@tradingsol.com"
-    ]
+    role_mapping = defaultdict(list)
 
-    if email in commercial:
-        return "commercial"
-    elif email in pricing:
-        return "pricing"
-    elif email in ground:
-        return "ground"
-    elif email in admin:
-        return "admin"
-    elif email in inside_sales:
-        return "inside_sales"
-    else:
-        return None
+    roles = {
+        "commercial": [
+            "sales2", "sales1", "sales3", "sales4", "sales5", "sales6", "bds", "insidesales"
+        ],
+        "pricing": [
+            "pricing2", "pricing8", "pricing6", "pricing10", "pricing11", "customer9"
+        ],
+        "admin": [
+            "manager", "jsanchez", "pricing2", "pricing", "manager"
+        ],
+        "scrap_team": [
+            "bds", "insidesales", "sales", "pricing3", "pricing6"
+        ],
+        "ground": [
+            "ground", "customer5", "ground1"
+        ],
+        "inside_sales": [
+            "pricing7", "traffic2", "customer3"
+        ]
+    }
+
+    domain_variants = ["@tradingsolutions.com", "@tradingsol.com"]
+
+    email_to_role = {}
+    for role, usernames in roles.items():
+        for username in usernames:
+            for domain in domain_variants:
+                full_email = f"{username}{domain}"
+                email_to_role[full_email] = role
+
+    return email_to_role.get(email, None)
+
 
 @st.dialog("Warning", width="large")
 def non_identiy():
