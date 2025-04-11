@@ -104,6 +104,7 @@ def show_dialog():
                         st.session_state.selected_ground_quotation = None
                         st.session_state.selected_contract = None
                         reset_dialog_inputs()
+                        st.rerun()
                     else:
                         st.error(message)
 
@@ -177,6 +178,9 @@ def show(role):
 
     if role in ["ground", "admin"]:
         tabs_names.append("Ground Quotations")
+
+    if "last_active_tab" not in st.session_state:
+        st.session_state.last_active_tab = tabs_names[0]
 
     tab_objs = st.tabs(tabs_names)
 
@@ -301,6 +305,7 @@ def show(role):
 
     if role in ["ground", "admin"]:
         with tab_objs[2]:
+
             key_prefix = "ground"
             col1, col2, col3 = st.columns([1,  0.18, 0.18])
             with col1:

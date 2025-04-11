@@ -149,6 +149,8 @@ def handle_row_selection(selected_rows, source):
         selected_df = selected_df.dropna()
         selected_df.set_index("Field", inplace=True)
 
+        reset_dialog_inputs()
+
         st.session_state.selected_requested_quotation = None
         st.session_state.selected_ground_quotation = None
         st.session_state.selected_contract = None
@@ -257,3 +259,18 @@ def save_feedback_to_sheets(feedback_data):
 
     except Exception as e:
         return False, f"Error saving feedback: {str(e)}"
+
+
+def reset_dialog_inputs():
+    for key in ["assigned_status", "reason", "other_reason", "cost", "target"]:
+        st.session_state.pop(key, None)
+
+def clear_selected_quotation():
+    st.session_state.selected_requested_quotation = None
+    st.session_state.selected_contract = None
+    st.session_state.selected_ground_quotation = None
+    st.session_state.dialog_type = None
+    st.session_state.open_dialog = False
+    reset_dialog_inputs()
+
+
