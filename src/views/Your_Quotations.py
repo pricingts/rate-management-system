@@ -34,7 +34,11 @@ def show_dialog():
         st.dataframe(df)
         request_id = df.loc['REQUEST_ID', 'Value']
         commercial = df.loc['COMMERCIAL', 'Value']
-        type = dialog_type
+        quotation_type = dialog_type
+
+        if is_feedback_sent(request_id):
+            st.success("✅ Feedback already sent for this quotation.")
+            return
 
         assigned = st.radio(
             "¿This Quotation has been Assigned?",
@@ -81,7 +85,7 @@ def show_dialog():
             feedback_data = {
                     "request_id": request_id,
                     "commercial": commercial,
-                    "type": type,
+                    "type": quotation_type,
                     "assigned_status":assigned,
                     "reason": reason,
                     "other_reason": other_reason,

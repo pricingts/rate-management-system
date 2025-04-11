@@ -181,48 +181,23 @@ def filter_contracts(df, selected_origin, selected_destination, selected_cargo, 
         df_filtered = df_filtered[df_filtered["Cliente"].apply(lambda x: any(o in x for o in selected_client))]
     return df_filtered
 
-def save_feedback_to_sheets(feedback_data):
+def get_worksheet(sheet_name):
+    creds = Credentials.from_service_account_info(
+        st.secrets["google_sheets_credentials"],
+        scopes=["https://www.googleapis.com/auth/spreadsheets"]
+    )
+    client = gspread.authorize(creds)
+    spreadsheet_id = st.secrets["general"]["time_sheet_id"]
+    sheet = client.open_by_key(spreadsheet_id)
+
     try:
-        creds = Credentials.from_service_account_info(
-            st.secrets["google_sheets_credentials"],
-            scopes=["https://www.googleapis.com/auth/spreadsheets"]
-        )
-        client = gspread.authorize(creds)
+        worksheet = sheet.worksheet(sheet_name)
+    except gspread.exceptions.WorksheetNotFound:
+        worksheet = sheet.add_worksheet(title=sheet_name, rows="1000", cols="10")
+        headers = ["TIME","REQUEST_ID", "COMMERCIAL", "QUOTATION TYPE", "ASSIGNATON STATUS", "REASON", "OTHER REASON", "COST", "TARGET"]
+        worksheet.append_row(headers)
 
-        spreadsheet_id = st.secrets["general"]["time_sheet_id"]
-        worksheet_name = "Quotations Feedback"
-
-
-        sheet = client.open_by_key(spreadsheet_id)
-
-        try:
-            worksheet = sheet.worksheet(worksheet_name)
-        except gspread.exceptions.WorksheetNotFound:
-            worksheet = sheet.add_worksheet(title=worksheet_name, rows="1000", cols="10")
-            headers = ["TIME","REQUEST ID", "COMMERCIAL", "QUOTATION TYPE", "ASSIGNATON STATUS", "REASON", "OTHER REASON", "COST", "TARGET"]
-            worksheet.append_row(headers)
-        
-        now = datetime.now()
-        datetime_str = now.strftime("%Y-%m-%d %H:%M:%S")
-
-        new_row = [
-            datetime_str,
-            feedback_data.get("request_id", ""),
-            feedback_data.get("commercial", ""),
-            feedback_data.get("type", ""),
-            feedback_data.get("assigned_status", ""),
-            feedback_data.get("reason", ""),
-            feedback_data.get("other_reason", ""),
-            feedback_data.get("cost", ""),
-            feedback_data.get("target", "")
-        ]
-
-        worksheet.append_row(new_row)
-
-        return True, "Information saved successfully!"
-
-    except Exception as e:
-        return False, f"Error saving feedback: {str(e)}"
+    return worksheet
 
 def reset_dialog_inputs():
     if "reason_status" in st.session_state:
@@ -250,3 +225,35 @@ def initialize_filters_contracts(key_prefix):
         key = f"{key_prefix}_{field}"
         if key not in st.session_state:
             st.session_state[key] = []
+
+def is_feedback_sent(request_id):
+    worksheet = get_worksheet("Quotations Feedback")
+    records = worksheet.get_all_records()
+    sent_ids = [str(row.get("REQUEST_ID", "")).strip() for row in records]
+    return str(request_id).strip() in sent_ids
+
+def save_feedback_to_sheets(feedback_data):
+    try:
+        worksheet = get_worksheet("Quotations Feedback")
+        
+        now = datetime.now()
+        datetime_str = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        new_row = [
+            datetime_str,
+            feedback_data.get("request_id", ""),
+            feedback_data.get("commercial", ""),
+            feedback_data.get("type", ""),
+            feedback_data.get("assigned_status", ""),
+            feedback_data.get("reason", ""),
+            feedback_data.get("other_reason", ""),
+            feedback_data.get("cost", ""),
+            feedback_data.get("target", "")
+        ]
+
+        worksheet.append_row(new_row)
+
+        return True, "Information saved successfully!"
+
+    except Exception as e:
+        return False, f"Error saving feedback: {str(e)}"
