@@ -143,55 +143,13 @@ def show_grid(df_filtered, source):
         if not selected_row.empty:
             handle_row_selection(selected_row.to_dict("records"), source)
 
-
-# def handle_row_selection(selected_rows, source):
-#     if selected_rows is not None and len(selected_rows) > 0:
-#         selected_df = pd.DataFrame(selected_rows)
-#         exclude_columns = ["origen", "destino", "EMAIL_SENT", "FEEDBACK", "ASSIGNED_TO", "DEADLINE", "TRANSPORT_COMBO"]
-#         selected_df = selected_df.drop(columns=[col for col in exclude_columns if col in selected_df.columns])
-
-#         selected_df = selected_df.T.reset_index()
-#         selected_df.columns = ["Field", "Value"]
-#         selected_df["Value"] = selected_df["Value"].astype(str)
-#         selected_df = selected_df[selected_df["Value"].str.strip() != ""]
-#         selected_df = selected_df[selected_df["Value"].str.lower() != "nan"]
-#         selected_df = selected_df.dropna()
-#         selected_df.set_index("Field", inplace=True)
-
-#         reset_dialog_inputs()
-
-#         st.session_state.selected_requested_quotation = None
-#         st.session_state.selected_ground_quotation = None
-#         st.session_state.selected_contract = None
-
-#         if source == "requested":
-#             st.session_state.selected_requested_quotation = selected_df
-#             st.session_state.selected_ground_quotation = None
-#             st.session_state.selected_contract = None
-#         elif source == "ground":
-#             st.session_state.selected_ground_quotation = selected_df
-#             st.session_state.selected_requested_quotation = None
-#             st.session_state.selected_contract = None
-#         elif source == "contract":
-#             st.session_state.selected_contract = selected_df
-#             st.session_state.selected_requested_quotation = None
-#             st.session_state.selected_ground_quotation = None
-
-#         st.session_state.dialog_type = source
-#         st.session_state.open_dialog = True
-
 def handle_row_selection(selected_rows, source):
-    """
-    Muestra en diálogo los campos y valores de la primera fila seleccionada.
-    """
     if not selected_rows:
         return
 
-    # 1) Solo tomamos el primer registro
     record = selected_rows[0]
     selected_df = pd.DataFrame([record])
 
-    # 2) Excluir columnas internas
     exclude_columns = [
         "origen", "destino", "EMAIL_SENT", "FEEDBACK",
         "ASSIGNED_TO", "DEADLINE", "TRANSPORT_COMBO"
@@ -199,26 +157,21 @@ def handle_row_selection(selected_rows, source):
     cols_to_drop = [c for c in exclude_columns if c in selected_df.columns]
     selected_df.drop(columns=cols_to_drop, inplace=True)
 
-    # 3) Transponer para Field / Value
     selected_df = selected_df.T.reset_index()
     selected_df.columns = ["Field", "Value"]
 
-    # 4) Filtrar valores vacíos o 'nan'
     selected_df["Value"] = selected_df["Value"].astype(str)
     selected_df = selected_df[selected_df["Value"].str.strip().astype(bool)]
     selected_df = selected_df[selected_df["Value"].str.lower() != "nan"]
     selected_df.dropna(subset=["Value"], inplace=True)
 
-    # 5) ¡Importante! Poner 'Field' como índice para que show_dialog lo use
     selected_df.set_index("Field", inplace=True)
 
-    # 6) Reset de inputs y otros estados
     reset_dialog_inputs()
     st.session_state.selected_requested_quotation = None
     st.session_state.selected_ground_quotation = None
     st.session_state.selected_contract = None
 
-    # 7) Guardar solo el DataFrame indexado
     if source == "requested":
         st.session_state.selected_requested_quotation = selected_df
     elif source == "ground":
