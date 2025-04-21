@@ -468,10 +468,15 @@ def show(role):
                                         st.session_state["clients_list"].append(client)
                                         st.success(f"✅ Client '{client}' successfully saved")
                                         load_clients.clear()
+                                    
+                                    files_uploaded = upload_all_files_to_google_drive(folder_id, drive_service)
+                                    link_label = ""
+                                    if files_uploaded:
+                                        link_label = "*"
 
                                     grouped_record = {
                                         "time": end_time_str,
-                                        "request_id": f'=HYPERLINK("{folder_link}"; "{st.session_state["request_id"]}")',
+                                        "request_id": f'=HYPERLINK("{folder_link}"; "{st.session_state["request_id"]} {link_label}")',
                                         "commercial": commercial,
                                         "client": client,
                                         "client_reference": client_reference,
@@ -716,7 +721,6 @@ def show(role):
                                     save_to_google_sheets(st.session_state["df_all_quotes"], sheet_id)
 
                                     del st.session_state["request_id"]
-                                    upload_all_files_to_google_drive(folder_id, drive_service)
                                     clear_temp_directory()
                                     reset_json()
                                     st.session_state["services"] = []
@@ -726,7 +730,7 @@ def show(role):
                                     st.session_state["page"] = "client_name"
                                     st.success(f"Quotation completed! Your request ID is {request_id}")
                                     st.session_state.clear()
-                                    change_page("select_sales_rep")
+                                    change_page("client_name") #Cambiar
 
                                 except Exception as e:
                                     st.error(f"An error occurred: {str(e)}")

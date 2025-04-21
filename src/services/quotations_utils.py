@@ -6,28 +6,41 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 
+def list_contains(field_str, selections):
+    if isinstance(field_str, list):
+        return any(item in field_str for item in selections)
+    items = re.split(r"[,\n;]+", str(field_str))
+    items = [item.strip() for item in items if item.strip()]
+    return any(s in items for s in selections)
+
 def prepare_dataframe(df):
-    def extraer_origen_destino(rutas):
-        origens, destinos = [], []
-        for ruta in rutas.splitlines():
-            matches = re.findall(r"\((.*?)\)", ruta)
-            if len(matches) > 0:
-                origens.append(matches[0])
-            if len(matches) > 1:
-                destinos.append(matches[1])
-        return {"origen": origens, "destino": destinos}
+    if df.empty or "ROUTES_INFO" not in df.columns:
+        return df
 
-    def combine_transport_modality(row):
-        if row['TRANSPORT_TYPE'] == "Maritime":
-            return f"{row['TRANSPORT_TYPE']} - {row['MODALITY']}"
-        else:
-            return row['TRANSPORT_TYPE']
+    # 3. Vectorizar extracción de origen y destino
+    matches = df["ROUTES_INFO"].str.extractall(r"\(([^)]+)\)")
+    matches.reset_index(inplace=True)
+    # nivel 0: índice original, match: 0=origen, 1=destino
+    origens = matches[matches["match"] == 0].set_index("level_0")[0]
+    destinos = matches[matches["match"] == 1].set_index("level_0")[0]
 
-    if not df.empty and "ROUTES_INFO" in df.columns:
-        df[["origen", "destino"]] = df["ROUTES_INFO"].apply(
-            lambda x: pd.Series(extraer_origen_destino(x))
-        )
-        df['TRANSPORT_COMBO'] = df.apply(combine_transport_modality, axis=1)
+    df["origen"] = df.index.to_series().apply(lambda i: [origens[i]] if i in origens.index else [])
+    df["destino"] = df.index.to_series().apply(lambda i: [destinos[i]] if i in destinos.index else [])
+
+    # Combinar transporte y modalidad
+    df["TRANSPORT_COMBO"] = df.apply(
+        lambda row: f"{row['TRANSPORT_TYPE']} - {row['MODALITY']}" 
+                    if row['TRANSPORT_TYPE'] == "Maritime" else row['TRANSPORT_TYPE'], axis=1
+    )
+
+    # 5. Preprocesar columnas multi-valor en listas
+    df["SERVICES_LIST"] = df["SERVICE"].fillna("").apply(
+        lambda x: [item.strip() for item in re.split(r"[,\n;]+", x) if item.strip()]
+    )
+    df["CONTAINERS_LIST"] = df["TYPE_CONTAINER"].fillna("").apply(
+        lambda x: [item.strip() for item in re.split(r"[,\n;]+", x) if item.strip()]
+    )
+
     return df
 
 
@@ -36,20 +49,15 @@ def create_filters(df_full, key_prefix):
     col4, col5, col6 = st.columns(3)
 
     with col1:
-        origen_options = sorted(set(o for sublist in df_full["origen"].dropna() for o in sublist))
+        origen_options = sorted({o for lst in df_full["origen"] for o in (lst or [])})
         selected_origen = st.multiselect('**Port of Origin**', origen_options, key=f"{key_prefix}_origen")
 
     with col2:
-        destino_options = sorted(set(d for sublist in df_full["destino"].dropna() for d in sublist))
+        destino_options = sorted({d for lst in df_full["destino"] for d in (lst or [])})
         selected_destino = st.multiselect('**Port of Destination**', destino_options, key=f"{key_prefix}_destino")
 
     with col3:
-        all_services = set()
-        for service in df_full['SERVICE'].dropna():
-            splitted = re.split(r'[,\n;]+', service)
-            splitted = [item.strip() for item in splitted if item.strip()]
-            all_services.update(splitted)
-        service_options = sorted(all_services)
+        service_options = sorted({s for lst in df_full["SERVICES_LIST"] for s in lst})
         selected_service = st.multiselect('**Service Requested**', service_options, key=f"{key_prefix}_service")
 
     with col4:
@@ -57,12 +65,7 @@ def create_filters(df_full, key_prefix):
         selected_transport = st.multiselect("**Transport/Modality**", transport_options, key=f"{key_prefix}_transport")
 
     with col5:
-        all_containers = set()
-        for container_str in df_full['TYPE_CONTAINER'].dropna():
-            splitted = re.split(r'[,\n;]+', container_str)
-            splitted = [item.strip() for item in splitted if item.strip()]
-            all_containers.update(splitted)
-        container_options = sorted(all_containers)
+        container_options = sorted({c for lst in df_full["CONTAINERS_LIST"] for c in lst})
         selected_container = st.multiselect('**Container Type**', container_options, key=f"{key_prefix}_cont_type")
 
     with col6:
@@ -70,7 +73,6 @@ def create_filters(df_full, key_prefix):
         selected_client = st.multiselect('**Client**', client_options, key=f"{key_prefix}_client")
 
     return selected_origen, selected_destino, selected_service, selected_transport, selected_container, selected_client
-
 
 def apply_filters(df_full, selected_origen, selected_destino, selected_client, selected_service, selected_container, selected_transport):
     df_filtered = df_full.copy()
@@ -106,70 +108,128 @@ def show_metrics(df_filtered):
     col3.metric(label="Maritime - LCL", value=maritime_lcl_count)
     col4.metric(label="Air", value=air_count)
 
+
 def show_grid(df_filtered, source):
-    if not df_filtered.empty:
-        gb = GridOptionsBuilder.from_dataframe(df_filtered)
-        visible_columns = ["REQUEST_ID", "CLIENT", "ROUTES_INFO", "INCOTERM", 
-                        "COMMODITY", "TRANSPORT_TYPE", "MODALITY", 
-                        "TYPE_CONTAINER", "STATUS", "DESTINATION", "CUSTOMER"]
+    if df_filtered.empty:
+        st.info("No hay registros para mostrar.")
+        return
 
-        for col in df_filtered.columns:
-            if col not in visible_columns:
-                gb.configure_column(col, hide=True)
-            else:
-                gb.configure_column(col)
+    visible_columns = [
+        "REQUEST_ID", "CLIENT", "ROUTES_INFO", "INCOTERM", 
+        "COMMODITY", "TRANSPORT_TYPE", "MODALITY", "TYPE_CONTAINER"
+    ]
+    df_display = df_filtered[visible_columns].copy()
 
-        gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=20)  
-        gb.configure_selection("single", use_checkbox=True)  
-        gb.configure_grid_options(domLayout='autoHeight')
+    ids = df_filtered["REQUEST_ID"].dropna().unique().tolist()
+    options = ["-- Select a request --"] + ids
 
-        grid_options = gb.build()
-        grid_key = f"aggrid_{source}"
+    key = f"select_{source}_id"
+    if key in st.session_state and st.session_state[key] not in options:
+        st.session_state[key] = options[0]
 
-        grid_response = AgGrid(df_filtered, gridOptions=grid_options,  key=grid_key,
-                        enable_enterprise_modules=True, 
-                        fit_columns_on_grid_load=True, height=600)
+    selected_id = st.selectbox(
+        "Select a request to view details", options,
+        key=key
+    )
 
-        selected_rows = grid_response.get("selected_rows")
+    if selected_id not in options:
+        st.session_state[f"select_{source}_id"] = "-- Select a request --"
+        return
 
-        if selected_rows is not None and len(selected_rows) > 0:
-            handle_row_selection(selected_rows, source)
+    st.dataframe(df_display, use_container_width=True, height=400, hide_index=True)
+
+    if selected_id and selected_id != "-- Select a request --":
+        selected_row = df_filtered[df_filtered["REQUEST_ID"] == selected_id]
+        if not selected_row.empty:
+            handle_row_selection(selected_row.to_dict("records"), source)
+
+
+# def handle_row_selection(selected_rows, source):
+#     if selected_rows is not None and len(selected_rows) > 0:
+#         selected_df = pd.DataFrame(selected_rows)
+#         exclude_columns = ["origen", "destino", "EMAIL_SENT", "FEEDBACK", "ASSIGNED_TO", "DEADLINE", "TRANSPORT_COMBO"]
+#         selected_df = selected_df.drop(columns=[col for col in exclude_columns if col in selected_df.columns])
+
+#         selected_df = selected_df.T.reset_index()
+#         selected_df.columns = ["Field", "Value"]
+#         selected_df["Value"] = selected_df["Value"].astype(str)
+#         selected_df = selected_df[selected_df["Value"].str.strip() != ""]
+#         selected_df = selected_df[selected_df["Value"].str.lower() != "nan"]
+#         selected_df = selected_df.dropna()
+#         selected_df.set_index("Field", inplace=True)
+
+#         reset_dialog_inputs()
+
+#         st.session_state.selected_requested_quotation = None
+#         st.session_state.selected_ground_quotation = None
+#         st.session_state.selected_contract = None
+
+#         if source == "requested":
+#             st.session_state.selected_requested_quotation = selected_df
+#             st.session_state.selected_ground_quotation = None
+#             st.session_state.selected_contract = None
+#         elif source == "ground":
+#             st.session_state.selected_ground_quotation = selected_df
+#             st.session_state.selected_requested_quotation = None
+#             st.session_state.selected_contract = None
+#         elif source == "contract":
+#             st.session_state.selected_contract = selected_df
+#             st.session_state.selected_requested_quotation = None
+#             st.session_state.selected_ground_quotation = None
+
+#         st.session_state.dialog_type = source
+#         st.session_state.open_dialog = True
 
 def handle_row_selection(selected_rows, source):
-    if selected_rows is not None and len(selected_rows) > 0:
-        selected_df = pd.DataFrame(selected_rows)
-        exclude_columns = ["origen", "destino", "EMAIL_SENT", "FEEDBACK", "ASSIGNED_TO", "DEADLINE", "TRANSPORT_COMBO"]
-        selected_df = selected_df.drop(columns=[col for col in exclude_columns if col in selected_df.columns])
+    """
+    Muestra en diálogo los campos y valores de la primera fila seleccionada.
+    """
+    if not selected_rows:
+        return
 
-        selected_df = selected_df.T.reset_index()
-        selected_df.columns = ["Field", "Value"]
-        selected_df["Value"] = selected_df["Value"].astype(str)
-        selected_df = selected_df[selected_df["Value"].str.strip() != ""]
-        selected_df = selected_df[selected_df["Value"].str.lower() != "nan"]
-        selected_df = selected_df.dropna()
-        selected_df.set_index("Field", inplace=True)
+    # 1) Solo tomamos el primer registro
+    record = selected_rows[0]
+    selected_df = pd.DataFrame([record])
 
-        reset_dialog_inputs()
+    # 2) Excluir columnas internas
+    exclude_columns = [
+        "origen", "destino", "EMAIL_SENT", "FEEDBACK",
+        "ASSIGNED_TO", "DEADLINE", "TRANSPORT_COMBO"
+    ]
+    cols_to_drop = [c for c in exclude_columns if c in selected_df.columns]
+    selected_df.drop(columns=cols_to_drop, inplace=True)
 
-        st.session_state.selected_requested_quotation = None
-        st.session_state.selected_ground_quotation = None
-        st.session_state.selected_contract = None
+    # 3) Transponer para Field / Value
+    selected_df = selected_df.T.reset_index()
+    selected_df.columns = ["Field", "Value"]
 
-        if source == "requested":
-            st.session_state.selected_requested_quotation = selected_df
-            st.session_state.selected_ground_quotation = None
-            st.session_state.selected_contract = None
-        elif source == "ground":
-            st.session_state.selected_ground_quotation = selected_df
-            st.session_state.selected_requested_quotation = None
-            st.session_state.selected_contract = None
-        elif source == "contract":
-            st.session_state.selected_contract = selected_df
-            st.session_state.selected_requested_quotation = None
-            st.session_state.selected_ground_quotation = None
+    # 4) Filtrar valores vacíos o 'nan'
+    selected_df["Value"] = selected_df["Value"].astype(str)
+    selected_df = selected_df[selected_df["Value"].str.strip().astype(bool)]
+    selected_df = selected_df[selected_df["Value"].str.lower() != "nan"]
+    selected_df.dropna(subset=["Value"], inplace=True)
 
-        st.session_state.dialog_type = source
-        st.session_state.open_dialog = True
+    # 5) ¡Importante! Poner 'Field' como índice para que show_dialog lo use
+    selected_df.set_index("Field", inplace=True)
+
+    # 6) Reset de inputs y otros estados
+    reset_dialog_inputs()
+    st.session_state.selected_requested_quotation = None
+    st.session_state.selected_ground_quotation = None
+    st.session_state.selected_contract = None
+
+    # 7) Guardar solo el DataFrame indexado
+    if source == "requested":
+        st.session_state.selected_requested_quotation = selected_df
+    elif source == "ground":
+        st.session_state.selected_ground_quotation = selected_df
+    else:  # "contract"
+        st.session_state.selected_contract = selected_df
+
+    st.session_state.dialog_type = source
+    st.session_state.open_dialog = True
+
+
 
 def filter_contracts(df, selected_origin, selected_destination, selected_cargo, selected_client):
     df_filtered = df.copy()
@@ -183,12 +243,24 @@ def filter_contracts(df, selected_origin, selected_destination, selected_cargo, 
         df_filtered = df_filtered[df_filtered["Cliente"].apply(lambda x: any(o in x for o in selected_client))]
     return df_filtered
 
-def get_worksheet(sheet_name):
+def get_sheets_client():
     creds = Credentials.from_service_account_info(
         st.secrets["google_sheets_credentials"],
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
-    client = gspread.authorize(creds)
+    return gspread.authorize(creds)
+
+
+def get_sheets_client():
+    creds = Credentials.from_service_account_info(
+        st.secrets["google_sheets_credentials"],
+        scopes=["https://www.googleapis.com/auth/spreadsheets"]
+    )
+    return gspread.authorize(creds)
+
+
+def get_worksheet(sheet_name):
+    client = get_sheets_client()
     spreadsheet_id = st.secrets["general"]["time_sheet_id"]
     sheet = client.open_by_key(spreadsheet_id)
 
@@ -196,18 +268,12 @@ def get_worksheet(sheet_name):
         worksheet = sheet.worksheet(sheet_name)
     except gspread.exceptions.WorksheetNotFound:
         worksheet = sheet.add_worksheet(title=sheet_name, rows="1000", cols="10")
-        headers = ["TIME","REQUEST_ID", "COMMERCIAL", "QUOTATION TYPE", "ASSIGNATON STATUS", "REASON", "OTHER REASON", "COST", "TARGET"]
+        headers = ["TIME","REQUEST_ID", "COMMERCIAL", "QUOTATION TYPE", "ASSIGNATON STATUS", 
+                "REASON", "OTHER REASON", "COST", "TARGET"]
         worksheet.append_row(headers)
 
     return worksheet
 
-def reset_dialog_inputs():
-    if "reason_status" in st.session_state:
-        st.session_state.reason_status = ""
-    if "cost" in st.session_state:
-        st.session_state.cost = 0.0
-    if "target" in st.session_state:
-        st.session_state.target = 0.0
 
 def clear_filters(key_prefix):
     for field in ["origen", "destino", "service", "transport", "cont_type", "client",

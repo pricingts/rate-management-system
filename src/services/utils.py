@@ -956,29 +956,7 @@ def final_questions():
     if "final_comments" not in st.session_state:
         st.session_state.final_comments = st.session_state.get("temp_details", {}).get("final_comments", "")
 
-    # if "volumen_num" not in st.session_state or not isinstance(st.session_state.get("volumen_num"), int):
-    #     st.session_state.volumen_num = st.session_state.get("temp_details", {}).get("volumen_num", 0) or 0
-    
-    # if "volumen_frequency" not in st.session_state:
-    #     st.session_state.volumen_frequency = st.session_state.get("temp_details", {}).get("volumen_frequency", "")
-    
-    # freq_op = ["Weekly", "Monthly"]
-
-    # st.write("**Cargo Volume**")
-    # col1, col2 = st.columns(2)
-    # with col1:
-    #     volumen_num = st.number_input(
-    #         "Quantity", key="volumen_num", value=int(st.session_state.volumen_num), min_value=0, step=1
-    #     ) 
-
-    # with col2:
-    #     volumen_frequency = st.selectbox(
-    #         "Frequency",
-    #         options=[""] + freq_op,
-    #         index=([""] + freq_op).index(st.session_state.volumen_frequency) if st.session_state.volumen_frequency in freq_op else 0,
-    #         key="volumen_frequency"
-    #     ) 
-    final_comments = st.text_area("Final Comments", key="final_comments", value=st.session_state.final_comments)
+    final_comments = st.text_area("Final Comments", key="final_comments")
 
     additional_documents = st.file_uploader("Attach Additional Documents", accept_multiple_files=True, key="additional_documents_files")
 
@@ -987,9 +965,7 @@ def final_questions():
         additional_documents_files = [save_file_locally(file) for file in additional_documents]
 
     return {
-        # "volumen_num": volumen_num,
-        # "volumen_frequency": volumen_frequency,
-        "final_comments": final_comments,
+        "final_comments": st.session_state["final_comments"],
         "additional_documents_files": additional_documents_files
     }
 
@@ -1256,14 +1232,14 @@ def save_to_google_sheets(dataframe, sheet_id, max_attempts=5):
     while attempts < max_attempts:
         try:
             if contains_routes_match:
-                save_data_to_google_sheets(dataframe, sheet_id, "Ground Quotations")
-                save_data_to_google_sheets(dataframe, sheet_id, "All Quotes")  # CAMBIAR A All Quotes si es necesario
+                save_data_to_google_sheets(dataframe, sheet_id, "GROUND TEST")
+                save_data_to_google_sheets(dataframe, sheet_id, "TEST")  # CAMBIAR A All Quotes si es necesario
             elif contains_ground:
-                save_data_to_google_sheets(dataframe, sheet_id, "Ground Quotations")
+                save_data_to_google_sheets(dataframe, sheet_id, "GROUND TEST")
                 if temp_service.str.contains(",").any():
-                    save_data_to_google_sheets(dataframe, sheet_id, "All Quotes")  # CAMBIAR A All Quotes si es necesario
+                    save_data_to_google_sheets(dataframe, sheet_id, "TEST")  # CAMBIAR A All Quotes si es necesario
             else:
-                save_data_to_google_sheets(dataframe, sheet_id, "All Quotes")  # CAMBIAR A All Quotes si es necesario
+                save_data_to_google_sheets(dataframe, sheet_id, "TEST")  # CAMBIAR A All Quotes si es necesario
             return 
 
         except Exception as e:
@@ -1424,15 +1400,20 @@ def handle_file_uploads(file_uploader_key, label="Attach Files*", temp_dir=TEMP_
     return list(st.session_state[file_uploader_key].values())
 
 def upload_all_files_to_google_drive(folder_id, drive_service):
+    files_uploaded = False
+
     try:
-        file_list = drive_service.files().list(q=f"'{folder_id}' in parents", fields="files(name)").execute()
+        file_list = drive_service.files().list(
+            q=f"'{folder_id}' in parents",
+            fields="files(name)"
+        ).execute()
         existing_files = {file['name'] for file in file_list.get('files', [])}
 
         for root, _, files in os.walk(TEMP_DIR):
             for file_name in files:
                 file_path = os.path.join(root, file_name)
-                
-                if file_name not in existing_files: 
+
+                if file_name not in existing_files:
                     with open(file_path, "rb") as file:
                         file_metadata = {'name': file_name, 'parents': [folder_id]}
                         media = MediaFileUpload(file_path, resumable=True)
@@ -1444,18 +1425,19 @@ def upload_all_files_to_google_drive(folder_id, drive_service):
                             supportsAllDrives=True
                         ).execute()
 
-                        #st.success(f"Uploaded file: {file_name}")
+                        files_uploaded = True  # Se subió al menos un archivo
 
                     try:
                         os.remove(file_path)
                     except Exception as e:
                         st.error(f"Error al eliminar {file_name}: {e}")
-
                 else:
                     st.warning(f"El archivo {file_name} ya existe en Google Drive. No se subirá de nuevo.")
 
     except Exception as e:
-        st.error(f"Error al subir archivos a Google Drive: {e}")
+        st.error(f"Ocurrió un error al subir los archivos: {e}")
+
+    return files_uploaded
 
 def load_existing_ids_from_sheets():
     sheet_name = "Duration Time Quotation" 

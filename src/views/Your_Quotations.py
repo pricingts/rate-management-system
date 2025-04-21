@@ -16,6 +16,8 @@ def clean_text(value):
 
 @st.dialog("Quotation Details", width="large")
 def show_dialog():
+    st.session_state.open_dialog = False
+
     dialog_type = st.session_state.get("dialog_type")
 
     if dialog_type == "requested":
@@ -210,6 +212,10 @@ def show(role):
             df_filtered = pd.DataFrame()
         else:
             df_full = prepare_dataframe(df_full)
+            texto_cols = ["COMMODITY"]
+            for col in texto_cols:
+                if col in df_full:
+                    df_full[col] = df_full[col].astype(str)
 
             df_full['TIME'] = pd.to_datetime(df_full['TIME'], format='%d/%m/%Y %H:%M:%S')
             df_full = df_full.sort_values(by='TIME', ascending=False)
@@ -287,21 +293,18 @@ def show(role):
                 for col in df_filtered.select_dtypes(include=["object"]).columns:
                     df_filtered[col] = df_filtered[col].apply(clean_text)
 
-                gb = GridOptionsBuilder.from_dataframe(df_filtered)
-                gb.configure_pagination(paginationAutoPageSize=True, paginationPageSize=20) 
-                gb.configure_selection("single", use_checkbox=True)  
-                gb.configure_grid_options(domLayout='autoHeight')
+                request_ids = df_filtered["REQUEST_ID"].tolist()
+                request_ids.insert(0, "-- Select a request --")
 
-                grid_options = gb.build()
+                selected_id = st.selectbox("Select a request to view details", request_ids)
+                for col in df_filtered.select_dtypes(include=["object"]).columns:
+                    df_filtered[col] = df_filtered[col].astype(str)
 
-                grid_response = AgGrid(df_filtered, gridOptions=grid_options, 
-                                enable_enterprise_modules=True, 
-                                fit_columns_on_grid_load=True, height=600)
+                st.dataframe(df_filtered, use_container_width=True, height=600, hide_index=True)
 
-                selected_rows = grid_response.get("selected_rows")
-
-                if selected_rows is not None and len(selected_rows) > 0:
-                    handle_row_selection(selected_rows, "contract")
+                selected_row = df_filtered[df_filtered["REQUEST_ID"] == selected_id]
+                if not selected_row.empty:
+                    handle_row_selection(selected_row.to_dict("records"), "contract")
 
     if role in ["ground", "admin"]:
         with tab_objs[2]:
