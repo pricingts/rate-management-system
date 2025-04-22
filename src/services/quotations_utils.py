@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import re
-from st_aggrid import AgGrid, GridOptionsBuilder
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
@@ -17,23 +16,19 @@ def prepare_dataframe(df):
     if df.empty or "ROUTES_INFO" not in df.columns:
         return df
 
-    # 3. Vectorizar extracción de origen y destino
     matches = df["ROUTES_INFO"].str.extractall(r"\(([^)]+)\)")
     matches.reset_index(inplace=True)
-    # nivel 0: índice original, match: 0=origen, 1=destino
     origens = matches[matches["match"] == 0].set_index("level_0")[0]
     destinos = matches[matches["match"] == 1].set_index("level_0")[0]
 
     df["origen"] = df.index.to_series().apply(lambda i: [origens[i]] if i in origens.index else [])
     df["destino"] = df.index.to_series().apply(lambda i: [destinos[i]] if i in destinos.index else [])
 
-    # Combinar transporte y modalidad
     df["TRANSPORT_COMBO"] = df.apply(
         lambda row: f"{row['TRANSPORT_TYPE']} - {row['MODALITY']}" 
                     if row['TRANSPORT_TYPE'] == "Maritime" else row['TRANSPORT_TYPE'], axis=1
     )
 
-    # 5. Preprocesar columnas multi-valor en listas
     df["SERVICES_LIST"] = df["SERVICE"].fillna("").apply(
         lambda x: [item.strip() for item in re.split(r"[,\n;]+", x) if item.strip()]
     )

@@ -1,1 +1,57 @@
-[]
+[
+    {
+        "service": "International Freight",
+        "details": {
+            "routes": [
+                {
+                    "country_origin": "United Arab Emirates",
+                    "port_origin": "Al Ain",
+                    "country_destination": "United Arab Emirates",
+                    "port_destination": "Al Ain"
+                }
+            ],
+            "dimensions_flatrack": [
+                {
+                    "weight": 0.0,
+                    "length": 0.0,
+                    " width": 0.0,
+                    "height": 0.0,
+                    "weight_unit": "KG",
+                    "length_unit": "CM"
+                }
+            ],
+            "service": "International Freight",
+            "transport_type": "Maritime",
+            "modality": "FCL",
+            "msds_files": [],
+            "imo_cargo": false,
+            "imo_type": "",
+            "un_code": "",
+            "destination_cost": false,
+            "incoterm": "FOB",
+            "commodity": "2bhejf3",
+            "hs_code": "",
+            "pickup_address": null,
+            "zip_code_origin": null,
+            "delivery_address": null,
+            "zip_code_destination": null,
+            "cargo_value": 0.0,
+            "customs_origin": false,
+            "insurance_required": false,
+            "type_container": [
+                "20' Dry Standard"
+            ],
+            "reinforced": false,
+            "food_grade": false,
+            "isotank": false,
+            "flexitank": false,
+            "ts_files": [],
+            "msds_files_tank": [],
+            "positioning": "In yard",
+            "pickup_city": "vqhjkcv",
+            "lcl_fcl_mode": false,
+            "final_comments": "qbwrhwt;",
+            "additional_documents_files": []
+        }
+    }
+]

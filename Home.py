@@ -16,7 +16,7 @@ def identity_role(email):
             "pricing2", "pricing8", "pricing6", "pricing10", "pricing11", "customer9"
         ],
         "admin": [
-            "manager", "jsanchez", "pricing2", "pricing", "manager"
+            "manager", "jsanchez", "pricing2", "sjaafar", "manager"
         ],
         "scrap_team": [
             "bds", "insidesales", "sales", "pricing3", "pricing6"
@@ -44,7 +44,7 @@ def identity_role(email):
 @st.dialog("Warning", width="large")
 def non_identiy():
     st.write("Dear user, it appears that you do not have an assigned role on the platform. This might restrict your access to certain features. Please contact the support team to have the appropriate role assigned. Thank you!")
-    st.write("pricing@tradingsol.com")
+    st.write("sjaafar@tradingsolutions.com")
 
 col1, col2, col3 = st.columns([1, 2, 1])
 
@@ -61,7 +61,11 @@ else:
 
     if role in ["commercial", "admin"]:
         with st.sidebar:
-            page = st.radio("Go to", ["Home", "Contracts Management", "Your Quotations", "New Request", "Download Payment Request"])
+            page = st.radio("Go to", ["Home", "Your Quotations", "Contracts Management", "New Request", "Download Payment Request"])
+
+        if page == "Home":
+            import src.views.Dashboard as d
+            d.show(role)
 
         if page == "Contracts Management":
             import src.views.Contracts_Management as cm
@@ -81,7 +85,11 @@ else:
 
     elif role in ["pricing", "ground", "inside_sales"]:
         with st.sidebar:
-            page = st.radio("Go to", ["Home", "Contracts Management", "Your Quotations", "Download Payment Request"])
+            page = st.radio("Go to", ["Home", "Your Quotations", "Contracts Management", "Download Payment Request"])
+
+        if page == "Home":
+            import src.views.Dashboard as d
+            d.show(role)
 
         if page == "Contracts Management":
             import src.views.Contracts_Management as cm

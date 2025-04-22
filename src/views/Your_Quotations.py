@@ -2,10 +2,6 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-import json
-import os
-import re
-from st_aggrid import AgGrid, GridOptionsBuilder
 from src.services.quotations_utils import *
 
 def clean_text(value):
