@@ -61,24 +61,26 @@ def create_overlay(data, overlay_path):
     for category, details in surcharges.items():
         for container, values in details.items():
             sale = values.get("sale", 0)
+            sale_str = f"${sale:.2f}"
             total_sale += sale
             row = [
                 category,                   # Concepto
                 "USD",                      # Moneda
                 container,                  # Contenedor
-                f"${sale}"                  # Venta (con el signo $)
+                sale_str                  # Venta (con el signo $)
             ]
             table_data.append(row)
 
     # Procesar los additional_surcharges
     for additional in data.get("additional_surcharges", []):
         sale = additional.get("sale", 0)
+        sale_str = f"${sale:.2f}"
         total_sale += sale
         row = [
             additional.get("concept", ""),  # Concepto
             "USD",                          # Moneda
             "",                             # Contenedor (no aplica)
-            f"${sale}",                     # Costo (con el signo $)
+            sale_str,                     # Costo (con el signo $)
         ]
         table_data.append(row)
     
@@ -141,13 +143,15 @@ def create_overlay(data, overlay_path):
     c.drawString(right_x, start_y, "Free Days in Origin:")
     c.setFont("OpenSauce", 9)
     free_origin = data.get('Details', {}).get('Free Days in Origin', 'N/A')
-    c.drawString(right_x + 95, start_y, free_origin)
+    free_origin_str = str(free_origin)
+    c.drawString(right_x + 95, start_y, free_origin_str)
 
     c.setFont("OpenSauceBold", 9)
     c.drawString(right_x, start_y - line_space, "Free Days in Destination:")
     c.setFont("OpenSauce", 9)
     free_dest = data.get('Details', {}).get('Free Days in Destination', 'N/A')
-    c.drawString(right_x + 115, start_y - line_space, free_dest)
+    ree_dest_str = str(free_dest)
+    c.drawString(right_x + 115, start_y - line_space, ree_dest_str)
 
     x = 88                   
     y = y_position - 25          

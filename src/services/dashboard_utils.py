@@ -1,73 +1,16 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import gspread
-from google.oauth2.service_account import Credentials
 import plotly.graph_objects as go
 import plotly.express as px
 import re
-
-
-@st.cache_resource(ttl=100000)
-def get_gsheet_client() -> gspread.Client:
-    creds_info = st.secrets["google_sheets_credentials"]
-    creds = Credentials.from_service_account_info(
-        creds_info,
-        scopes=["https://www.googleapis.com/auth/spreadsheets"]
-    )
-    return gspread.authorize(creds)
-
-@st.cache_data(ttl=1800)
-def load_data_from_sheets(secret_key: str, worksheet_name: str) -> pd.DataFrame:
-    try:
-        sheet_id = st.secrets["general"][secret_key]
-        client = get_gsheet_client()
-        worksheet = client.open_by_key(sheet_id).worksheet(worksheet_name)
-        records = worksheet.get_all_records()
-        return pd.DataFrame(records)
-    except Exception as e:
-        st.error(f"Error cargando '{worksheet_name}': {e}")
-        return pd.DataFrame()
+from src.common.google_sheets import *
 
 def load_all_data():
-    df_requested = load_data_from_sheets("quotations_requested", "All Quotes")
-    df_feedback = load_data_from_sheets("time_sheet_id", "Quotations Feedback")
-    return df_requested, df_feedback
-
-def clean_commercial_names(df):
-    name_corrections = {
-        "Pedro Bruges": "Pedro Luis Bruges",
-        "pedro bruges": "Pedro Luis Bruges",  
-        "": "Andrés Consuegra"
-    }
-    df["commercial"] = df["commercial"].astype(str).str.strip()
-    df["commercial"] = df["commercial"].replace(name_corrections)
-    return df
-
-def preprocess_data(df_requested, df_feedback):
-    def clean_request_id(df):
-        if "REQUEST_ID" in df.columns:
-            df.rename(columns={"REQUEST_ID": "request_id"}, inplace=True)
-        df.columns = df.columns.str.strip().str.lower()
-        if "request_id" in df.columns:
-            df["request_id"] = df["request_id"].astype(str).str.extract(r"(Q\d+)", expand=False)
-        return df
-
-    df_requested = clean_request_id(df_requested)
-    df_feedback = clean_request_id(df_feedback)
-
-    df = df_requested.merge(df_feedback, on="request_id", how="left", suffixes=("", "_feedback"))
-
-    if "assignaton status" in df.columns:
-        df["assignaton status"] = df["assignaton status"].astype(str).str.strip().str.lower()
-    for col in df.columns:
-        if df[col].dtype == "object":
-            df[col] = df[col].astype(str)
-    
-    if "assigned_to" in df.columns:
-        df = df[~df["assigned_to"].str.contains("shadia", case=False, na=False)]
-
-    return df
+    df_requested = load_all_records("quotations_requested", "All Quotes")
+    df_ground = load_all_records("quotations_requested", "Ground Quotations")
+    df_feedback = load_all_records("time_sheet_id", "Quotations Feedback")
+    return df_requested, df_ground, df_feedback
 
 def extract_ports(df):
     def get_origin_and_destinations(route_str):
@@ -77,7 +20,7 @@ def extract_ports(df):
         if not ports:
             return ("", "")
         origin = ports[0]
-        destinations = list(set(ports[1:]))  # quitar duplicados
+        destinations = list(set(ports[1:]))
         return origin, ", ".join(destinations)
 
     df["routes_info"] = df["routes_info"].fillna("")
@@ -107,7 +50,7 @@ def apply_filters(df, role):
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        client_filter = st.multiselect("Client", sorted(df_filtered["client"].dropna().unique()))
+        client_filter = st.multiselect("**Client**", sorted(df_filtered["client"].dropna().unique()))
         if client_filter:
             df_filtered = df_filtered[df_filtered["client"].isin(client_filter)]
 
@@ -115,41 +58,65 @@ def apply_filters(df, role):
         assigned_split = df_filtered["assigned_to"].dropna().astype(str).str.split(r",\s*")
         assigned_flat = sorted(set(name.strip() for sublist in assigned_split for name in sublist))
 
-        assigned_filter = st.multiselect("Pricing Member", assigned_flat)
+        assigned_filter = st.multiselect("**Pricing Member**", assigned_flat)
         if assigned_filter:
             df_filtered = df_filtered[df_filtered["assigned_to"].apply(
                 lambda val: any(name in str(val) for name in assigned_filter)
             )]
 
     with col3:
-        status_filter = st.multiselect("Assignation Status", sorted(df_filtered["assignaton status"].dropna().unique()))
-        if status_filter:
-            df_filtered = df_filtered[df_filtered["assignaton status"].isin(status_filter)]
+        df_filtered["assignaton status"] = df_filtered["assignaton status"].astype(str).str.strip().str.lower()
+
+        valid_statuses = ["yes", "no"]
+        available_statuses = sorted(set(df_filtered["assignaton status"]) & set(valid_statuses))
+
+        status_display = [s.capitalize() for s in available_statuses]
+        selected_display = st.multiselect("**Assignation Status**", status_display)
+
+        selected_status = [s.lower() for s in selected_display]
+
+        if selected_status:
+            df_filtered = df_filtered[df_filtered["assignaton status"].isin(selected_status)]
 
     if role == "admin":
-        col4, col5, col6 = st.columns(3)
+        col4, col5, col6, col7 = st.columns(4)
     else:
-        col4, col5 = st.columns(2)
-        col6 = None
+        col4, col5, col6 = st.columns(3)
+        col7 = None
 
     with col4:
-        origin_filter = st.multiselect("Port of Origin", sorted(df_filtered["origin_port"].dropna().unique()))
+        origin_filter = st.multiselect("**Port of Origin**", sorted(df_filtered["origin_port"].dropna().unique()))
         if origin_filter:
             df_filtered = df_filtered[df_filtered["origin_port"].isin(origin_filter)]
 
     with col5:
         all_destinations = sorted(set(", ".join(df_filtered["destination_ports"]).split(", ")))
-        destination_filter = st.multiselect("Port of Destination", all_destinations)
+        destination_filter = st.multiselect("**Port of Destination**", all_destinations)
         if destination_filter:
             df_filtered = df_filtered[df_filtered["destination_ports"].apply(
                 lambda x: any(dest in x for dest in destination_filter)
             )]
+    
+    with col6:
+        all_services = df_filtered["service"].dropna().astype(str)
+        all_services_split = set()
+        for entry in all_services:
+            parts = [s.strip() for s in re.split(r"[\n,]+", entry) if s.strip()]
+            all_services_split.update(parts)
 
-    if role == "admin" and col6:
-        with col6:
+        service_options = sorted(all_services_split)
+        selected_services = st.multiselect("**Service Requested**", service_options)
+
+        if selected_services:
+            df_filtered = df_filtered[df_filtered["service"].apply(
+                lambda s: any(sel in str(s) for sel in selected_services)
+            )]
+
+    if role == "admin" and col7:
+        with col7:
             all_commercials = sorted(df["commercial"].dropna().unique())
             all_commercials_display = ["-- All --"] + all_commercials
-            selected_commercial = st.selectbox("Commercial", all_commercials_display)
+            selected_commercial = st.selectbox("**Commercial**", all_commercials_display)
             if selected_commercial != "-- All --":
                 df_filtered = df_filtered[df_filtered["commercial"] == selected_commercial]
 
@@ -169,10 +136,13 @@ def show_kpis(df):
     col4.metric("Assignment Rate", f"{assignment_rate:.1f}%")
 
 def plot_evolution(df):
-    df["request_date"] = pd.to_datetime(df["time"], dayfirst=True, errors="coerce")
-    df["assigned_date"] = pd.to_datetime(df["time_feedback"], dayfirst=True, errors="coerce")
-    df["request_month"] = df["request_date"].dt.to_period("M").astype(str)
-    df["assigned_month"] = df["assigned_date"].dt.to_period("M").astype(str)
+    # Las fechas ya están parseadas, solo las renombramos
+    df["request_date"] = df["time"]
+    df["assigned_date"] = df["time_feedback"]
+
+    df["request_month"] = pd.to_datetime(df["time"], errors="coerce").dt.to_period("M").astype(str)
+    df["assigned_month"] = pd.to_datetime(df["time_feedback"], errors="coerce").dt.to_period("M").astype(str)
+
 
     reqs = df.groupby("request_month").agg(total_requests=("request_id", "count")).reset_index().rename(columns={"request_month": "month"})
     assigns = df[df["assignaton status"] == "yes"].groupby("assigned_month").agg(assigned=("request_id", "count")).reset_index().rename(columns={"assigned_month": "month"})
@@ -306,8 +276,6 @@ def plot_top_clients_requests(df):
     )
 
     st.plotly_chart(fig, use_container_width=True)
-
-
 
 def plot_price_comparison(df):
     df["assignaton status"] = df["assignaton status"].astype(str).str.strip().str.lower()

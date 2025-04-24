@@ -3,11 +3,13 @@ import pandas as pd
 import numpy as np
 from src.services.dashboard_utils import *
 import plotly.graph_objects as go
+from src.common.transformers import clean_commercial_names, preprocess_data
+
 
 def show(role, user):
-    df_requested, df_feedback = load_all_data()
-    df = preprocess_data(df_requested, df_feedback)
-    df = clean_commercial_names(df)
+    df_requested, df_ground, df_feedback = load_all_data()
+    df_all = preprocess_data(df_requested, df_ground, df_feedback)
+    df = clean_commercial_names(df_all)
 
     if role == "commercial":
         df = df[df["commercial"].str.lower().str.strip() == user.lower().strip()]

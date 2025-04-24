@@ -4,24 +4,19 @@ import pandas as pd
 import streamlit as st
 import numpy as np
 from src.services.cotizacion import *
-import json
 from src.services.utils import load_existing_ids_from_sheets, log_time
 import pytz
 from datetime import datetime
 import datetime as dt
 from src.services.utils import load_clients
+from src.common.google_sheets import (
+    open_spreadsheet,
+    get_or_create_worksheet,
+    load_all_records,
+)
+from src.config import SHEETS
 
-colombia_timezone = pytz.timezone('America/Bogota')
-sheets_creds = Credentials.from_service_account_info(
-        st.secrets["google_sheets_credentials"],
-        scopes=[
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive",
-        ]
-    )
-
-client_gcp = gspread.authorize(sheets_creds)
-time_sheet_id = st.secrets["general"]["time_sheet_id"]
+tz = pytz.timezone('America/Bogota')
 
 if "client" not in st.session_state:
     st.session_state["client"] = None
@@ -88,99 +83,50 @@ def generate_request_id():
 
 
 def save_to_google_sheets(data, start_time):
-    SPREADSHEET_ID = st.secrets['general']['costs_sales_contracts']
-    SHEET_NAME = "CONTRATOS"
+    
+    ss = open_spreadsheet("costs_sales_contracts")
+    headers = [
+        "REQUEST_ID","COMMERCIAL","TIME","CLIENT","CUSTOMER_NAME","INCOTERM",
+        "VALIDITY","POL","POD","COMMODITY","CONTRATO_ID",
+        "CARGO_TYPES","CARGO_VALUE","SURCHARGES (COSTOS)","SURCHARGES (VENTAS)",
+        "ADDITIONAL_SURCHARGES (Costos)","ADDITIONAL_SURCHARGES (Ventas)",
+        "TOTAL_COST","TOTAL_SALE","TOTAL_PROFIT"
+    ]
+    ws = get_or_create_worksheet(ss, "CONTRATOS", headers=headers)
 
-    credentials = Credentials.from_service_account_info(
-        st.secrets["google_sheets_credentials"],
-        scopes=["https://www.googleapis.com/auth/spreadsheets", 
-                "https://www.googleapis.com/auth/drive"]
-    )
-
-    gc = gspread.authorize(credentials)
-    try:
-        sheet = gc.open_by_key(SPREADSHEET_ID)
-        try:
-            worksheet = sheet.worksheet(SHEET_NAME)
-        except gspread.exceptions.WorksheetNotFound:
-            worksheet = sheet.add_worksheet(title=SHEET_NAME, rows="1000", cols="30")
-            st.warning(f"Worksheet '{SHEET_NAME}' was created.")
-            headers = [
-                "REQUEST_ID", "COMMERCIAL", "TIME", "CLIENT", "CUSTOMER_NAME", "INCOTERM", "VALIDITY", "POL", "POD", "COMMODITY", "CONTRATO_ID",
-                "CARGO_TYPES", "CARGO_VALUE", "SURCHARGES (COSTOS)", "SURCHARGES (VENTAS)", 
-                "ADDITIONAL_SURCHARGES (Costos)", "ADDITIONAL_SURCHARGES (Ventas)", 
-                "TOTAL_COST", "TOTAL_SALE", "TOTAL_PROFIT"
-            ]
-
-            worksheet.append_row(headers)
-    except gspread.exceptions.SpreadsheetNotFound:
-        st.error("The specified Google Sheets document was not found.")
-        return
-
-    client = data["client"]
-    incoterm = data["incoterm"]
-    cargo_types = "\n".join(data["cargo_types"]) 
-    cargo_value = data["cargo_value"]
-    total_profit = data["total_profit"]
-    commercial = data["commercial"]
-    customer_name = data["customer_name"]
-    validity = data["validity"]
-
-    total_cost = 0
-    total_sale = 0
-
-    surcharge_costs = []
-    surcharge_sales = []
+    total_cost = total_sale = 0
+    costs, sales = [], []
     for surcharge, details in data["surcharges"].items():
-        for cont_type, values in details.items():
-            cost = values['cost']
-            sale = values['sale']
-            surcharge_costs.append(f"{surcharge} {cont_type}: ${cost:.2f}")
-            surcharge_sales.append(f"{surcharge} {cont_type}: ${sale:.2f}")
-            total_cost += cost
-            total_sale += sale
+        for cont, vals in details.items():
+            c, s = vals['cost'], vals['sale']
+            costs.append(f"{surcharge} {cont}: ${c:.2f}")
+            sales.append(f"{surcharge} {cont}: ${s:.2f}")
+            total_cost += c; total_sale += s
+    additional_costs, additional_sales = [], []
+    for add in data.get("additional_surcharges", []):
+        c, s = add['cost'], add['sale']
+        additional_costs.append(f"{add['concept']}: ${c:.2f}")
+        additional_sales.append(f"{add['concept']}: ${s:.2f}")
+        total_cost += c; total_sale += s
 
-    surcharge_costs_str = "\n".join(surcharge_costs) 
-    surcharge_sales_str = "\n".join(surcharge_sales)
-
-    additional_surcharge_costs = []
-    additional_surcharge_sales = []
-    for add_surcharge in data["additional_surcharges"]:
-        cost = add_surcharge['cost']
-        sale = add_surcharge['sale']
-        additional_surcharge_costs.append(f"{add_surcharge['concept']}: ${cost:.2f}")
-        additional_surcharge_sales.append(f"{add_surcharge['concept']}: ${sale:.2f}")
-        total_cost += cost
-        total_sale += sale
-
-    additional_surcharge_costs_str = "\n".join(additional_surcharge_costs) 
-    additional_surcharge_sales_str = "\n".join(additional_surcharge_sales)
-
-    st.session_state["end_time"] = datetime.now(pytz.utc).astimezone(colombia_timezone)
-    end_time = st.session_state.get("end_time", None)
-    if end_time is not None:
-        end_time_str = end_time.strftime('%Y-%m-%d %H:%M:%S')
-    else:
-        st.error("Error: 'end_time' no fue asignado correctamente.")
+    end_time = datetime.now(pytz.utc).astimezone(tz)
+    end_str = end_time.strftime('%Y-%m-%d %H:%M:%S')
+    if not start_time:
+        st.error("Error: 'start_time' no definido.")
         return
-
-    start_time = st.session_state.get("start_time", None)
-    if start_time and end_time:
-        duration = (end_time - start_time).total_seconds()
-    else:
-        st.error("Error: 'start_time' o 'end_time' no están definidos. No se puede calcular la duración.")
-        return
+    duration = (end_time - start_time).total_seconds()
 
     row = [
-        st.session_state["request_id"], commercial, end_time_str, client, customer_name, incoterm, validity,
-        data["pol"], data["pod"], data["commodity"], data["contract_id"],
-        cargo_types, cargo_value, surcharge_costs_str, surcharge_sales_str, 
-        additional_surcharge_costs_str, additional_surcharge_sales_str,
-        f"${total_cost:.2f}", f"${total_sale:.2f}", f"${total_profit:.2f}"
+        data['request_id'], data['commercial'], end_str,
+        data['client'], data['customer_name'], data['incoterm'], data['validity'],
+        data['pol'], data['pod'], data['commodity'], data['contract_id'],
+        "\n".join(data['cargo_types']), data['cargo_value'],
+        "\n".join(costs), "\n".join(sales),
+        "\n".join(additional_costs), "\n".join(additional_sales),
+        f"${total_cost:.2f}", f"${total_sale:.2f}", f"${data['total_profit']:.2f}"
     ]
-    worksheet.append_row(row)
-    
-    log_time(start_time, end_time, duration, st.session_state["request_id"], quotation_type="Contracts")
+    ws.append_row(row)
+    log_time(start_time, end_time, duration, data['request_id'], quotation_type="Contracts")
 
 incoterm_op = ['CIF', 'CFR', 'FOB', 'CPT', 'DAP']
 
@@ -197,7 +143,7 @@ def select_options(role, contrato_id, available_cargo_types, tabla_pivot):
                 st.session_state["clients_list"] = []
 
         if st.session_state.get("start_time") is None:
-            st.session_state["start_time"] = datetime.now(colombia_timezone)
+            st.session_state["start_time"] = datetime.now(tz)
 
         start_time = st.session_state["start_time"]
 
@@ -376,11 +322,12 @@ def select_options(role, contrato_id, available_cargo_types, tabla_pivot):
 
             client_normalized = st.session_state.get("client", client).strip().lower() if client else ""
 
-            if client_normalized and all(c.strip().lower() != client_normalized for c in st.session_state["clients_list"]):
-                sheet = client_gcp.open_by_key(time_sheet_id)
-                worksheet = sheet.worksheet("clientes")
-                worksheet.append_row([st.session_state.get("client", client)])
-                st.session_state["clients_list"].append(client)
+            client_norm = st.session_state.get("client"," ").strip().lower()
+            if client_norm and all(c.lower()!=client_norm for c in st.session_state["clients_list"]):
+                ss_time = open_spreadsheet("time_sheet_id")
+                ws_cl = get_or_create_worksheet(ss_time, "clientes")
+                ws_cl.append_row([client_norm])
+                st.session_state["clients_list"].append(client_norm)
                 st.session_state["client"] = None
                 load_clients.clear()
                 st.rerun()
@@ -402,7 +349,7 @@ def select_options(role, contrato_id, available_cargo_types, tabla_pivot):
 
 def show(role):
     email = st.experimental_user.email
-    scrap_team = ["bds@tradingsol.com", "insidesales@tradingsol.com"]
+    scrap_team = ["bds@tradingsolutions.com", "insidesales@tradingsolutions.com"]
 
     if email in scrap_team:
         html_code = """
@@ -415,34 +362,17 @@ def show(role):
         st.markdown(html_code, unsafe_allow_html=True)
 
     else: 
-        SPREADSHEET_ID = st.secrets["general"]["contratos_id"]
-        SHEET_NAMES = ["Mejoras Q2", "TARIFAS SCRAP EXPO"]
 
-        credentials = Credentials.from_service_account_info(
-            st.secrets["contratos_credentials"],
-            scopes=[
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive",
-            ]
-        )
+        key, sheet = SHEETS["mejoras_q2"]
+        df1 = load_all_records(key, sheet)
 
-        @st.cache_data(ttl=1800)
-        def load_data_from_gsheets(spreadsheet_id: str, worksheet_name: str) -> pd.DataFrame:
-            gc = gspread.authorize(credentials)
-            sh = gc.open_by_key(spreadsheet_id)
-            worksheet = sh.worksheet(worksheet_name)
-            data = worksheet.get_all_values()
-            return pd.DataFrame(data[1:], columns=data[0]) if data else pd.DataFrame()
+        key, sheet = SHEETS["tarifas_scrap_expo"]
+        df2 = load_all_records(key, sheet)
 
-        @st.cache_data(ttl=1800)
-        def get_all_data(sheet_names: list):
-            return {sheet: load_data_from_gsheets(SPREADSHEET_ID, sheet) for sheet in sheet_names}
-
-        data_frames = get_all_data(SHEET_NAMES)
-        contratos_df = data_frames["Mejoras Q2"]
-        #contratos_df = contratos_df[~contratos_df["Estado"].isin(["NO APROBADO", "EN PAUSA"])]
-
-        tarifas_scrap = data_frames["TARIFAS SCRAP EXPO"]
+        for df in (df1, df2):
+            df.columns = df.columns.str.strip()
+        contratos_df = df1.copy()
+        tarifas_scrap = df2.copy()
 
         contratos_df["POL"] = contratos_df["POL"].astype(str)
         contratos_df["POD"] = contratos_df["POD"].astype(str)
@@ -525,7 +455,7 @@ def show(role):
 
                         for idx, ((linea, contrato_id), contrato_rows) in enumerate(row_contracts):
                             with columnas[idx]:
-                                with st.expander(f"🚢 **{linea} - {contrato_id.strip()}**", expanded=True):
+                                with st.expander(f"🚢 **{linea} - {str(contrato_id).strip()}**", expanded=True):
                                     contrato_info = contrato_rows.iloc[0]
                                     fields = {
                                         "Shipping Line": contrato_info.get("Línea", ""),
@@ -608,7 +538,12 @@ def show(role):
                                         tabla_pivot.dropna(how="all", inplace=True)
                                         tabla_pivot = tabla_pivot.astype(str)
 
-                                        tabla_pivot = tabla_pivot.loc[~(tabla_pivot.apply(lambda x: x.str.strip()).eq("").all(axis=1))]
+                                        tabla_pivot = tabla_pivot.loc[
+                                                ~(tabla_pivot
+                                                .apply(lambda x: x.astype(str).str.strip())
+                                                .eq("")
+                                                .all(axis=1))
+                                            ]
 
                                         tabla_pivot.dropna(axis=1, how="all", inplace=True)
 
@@ -627,7 +562,6 @@ def show(role):
                                     notas_formateadas = capitalizar_notas(notas).replace("\n", "  \n")  
                                     st.markdown(f"**Notes:**  \n{notas_formateadas}")
 
-                                    # 🔹 Botón para seleccionar contrato
                                     if st.button('Select', key=f"select_{linea}_{contrato_id}"):
                                         st.session_state["selected_contract"] = contrato_id
                                         st.session_state["selected_data"] = {

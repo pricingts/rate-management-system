@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
-import gspread
-from google.oauth2.service_account import Credentials
 from src.services.quotations_utils import *
+from ..common.role_utils import get_role_dfs
+from src.common.google_sheets import load_all_records
 
 def clean_text(value):
     if isinstance(value, str):
@@ -118,59 +118,10 @@ def show(role):
     if "dialog_type" not in st.session_state:
         st.session_state.dialog_type = None
 
-    quotations_requested = st.secrets["general"]["quotations_requested"]
-    quotations_contracts = st.secrets["general"]["costs_sales_contracts"]
-
-    creds = Credentials.from_service_account_info(
-        st.secrets["google_sheets_credentials"],
-        scopes=["https://www.googleapis.com/auth/spreadsheets"]
-    )
-
-    client = gspread.authorize(creds)
-
-    @st.cache_data(ttl=1800)
-    def load_data_from_sheets(sheet_id: str, worksheet_name: str) -> pd.DataFrame:
-        try:
-            sheet = client.open_by_key(sheet_id)
-            worksheet = sheet.worksheet(worksheet_name)
-            data = worksheet.get_all_records()
-            df = pd.DataFrame(data)
-
-            return df
-        except Exception as e:
-            st.error(f"Error al cargar datos desde Google Sheets ({worksheet_name}): {str(e)}")
-            return pd.DataFrame()
-
     name = st.experimental_user.name
     email = st.experimental_user.email
 
-    if role == "commercial":
-        request_df = load_data_from_sheets(quotations_requested, "All Quotes")
-        contracts_df = load_data_from_sheets(quotations_contracts, "CONTRATOS")
-        request_df = request_df[request_df["COMMERCIAL"] == name]
-        contracts_df = contracts_df[contracts_df["Commercial"] == name]
-    elif role == "pricing":
-        request_df = load_data_from_sheets(quotations_requested, "All Quotes")
-        contracts_df = load_data_from_sheets(quotations_contracts, "CONTRATOS")
-        name_map = {
-            'customer9@tradingsol.com': 'Luis',
-            'pricing11@tradingsol.com': 'Esthefy',
-            'pricing6@tradingsol.com': 'Heidi',
-            'pricing8@tradingsol.com': 'Mafe'
-        }
-        if email in name_map:
-            name = name_map[email]
-            request_df = request_df[request_df["ASSIGNED_TO"].apply(lambda x: name in [correo.strip() for correo in str(x).split(",")])]
-    elif role == "ground":
-        request_df = load_data_from_sheets(quotations_requested, "Ground Quotations")
-        contracts_df = pd.DataFrame()
-    elif role == "admin":
-        request_df = load_data_from_sheets(quotations_requested, "All Quotes")
-        ground_df = load_data_from_sheets(quotations_requested, "Ground Quotations") #incluir cotizaciones de graound
-        contracts_df = load_data_from_sheets(quotations_contracts, "CONTRATOS")
-    else:
-        request_df = pd.DataFrame()
-        contracts_df = pd.DataFrame()
+    request_df, contracts_df, ground_df = get_role_dfs(role, name, email)
 
     tabs_names = ["Quotations Requested", "Contracts Quotations"]
 
@@ -198,7 +149,7 @@ def show(role):
         with col3:
             st.write(" ")
             if st.button("Refresh Data", key="button_2"):
-                load_data_from_sheets.clear() 
+                load_all_records.clear() 
                 st.rerun()
 
         df_full = request_df.copy()
@@ -239,7 +190,7 @@ def show(role):
         with col3:
             st.write(" ")
             if st.button("Refresh Data", key="button_3"):
-                load_data_from_sheets.clear() 
+                load_all_records.clear() 
                 st.rerun()
 
         df_full = contracts_df.copy()
@@ -317,7 +268,7 @@ def show(role):
             with col3:
                 st.write(" ")
                 if st.button("Refresh Data", key="button_4"):
-                    load_data_from_sheets.clear() 
+                    load_all_records.clear() 
                     st.rerun()
 
             df_full = ground_df.copy()

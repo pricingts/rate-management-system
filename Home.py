@@ -16,7 +16,7 @@ def identity_role(email):
             "pricing2", "pricing8", "pricing6", "pricing10", "pricing11", "customer9"
         ],
         "admin": [
-            "manager", "jsanchez", "pricing2", "sjaafar", "manager"
+            "manager", "jsanchez", "pricing2", "manager", "sjaafar"
         ],
         "scrap_team": [
             "bds", "insidesales", "sales", "pricing3", "pricing6"
