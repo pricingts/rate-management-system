@@ -280,7 +280,7 @@ def show(role):
             total_profit = df_filtered['Total Profit'].sum()
             col1, col2, col3, col4 = st.columns(4)
 
-            col1.metric(label="Number of Quotations Downloaded", value=quotations_quantity)
+            col1.metric(label="Quotations Downloaded", value=quotations_quantity)
             col2.metric(label="Total Cost", value=f"${total_cost}")
             col3.metric(label="Total Sale", value=f"${total_sale}")
             col4.metric(label="Total Profit", value=f"${total_profit}")

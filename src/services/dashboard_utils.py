@@ -31,9 +31,8 @@ def load_data_from_sheets(secret_key: str, worksheet_name: str) -> pd.DataFrame:
 
 def load_all_data():
     df_requested = load_data_from_sheets("quotations_requested", "All Quotes")
-    df_contracts = load_data_from_sheets("costs_sales_contracts", "CONTRATOS")
     df_feedback = load_data_from_sheets("time_sheet_id", "Quotations Feedback")
-    return df_requested, df_contracts, df_feedback
+    return df_requested, df_feedback
 
 def clean_commercial_names(df):
     name_corrections = {
@@ -45,7 +44,7 @@ def clean_commercial_names(df):
     df["commercial"] = df["commercial"].replace(name_corrections)
     return df
 
-def preprocess_data(df_requested, df_contracts, df_feedback):
+def preprocess_data(df_requested, df_feedback):
     def clean_request_id(df):
         if "REQUEST_ID" in df.columns:
             df.rename(columns={"REQUEST_ID": "request_id"}, inplace=True)
@@ -55,11 +54,9 @@ def preprocess_data(df_requested, df_contracts, df_feedback):
         return df
 
     df_requested = clean_request_id(df_requested)
-    df_contracts = clean_request_id(df_contracts)
     df_feedback = clean_request_id(df_feedback)
 
     df = df_requested.merge(df_feedback, on="request_id", how="left", suffixes=("", "_feedback"))
-    df = df.merge(df_contracts, on="request_id", how="left", suffixes=("", "_contract"))
 
     if "assignaton status" in df.columns:
         df["assignaton status"] = df["assignaton status"].astype(str).str.strip().str.lower()
@@ -118,7 +115,7 @@ def apply_filters(df, role):
         assigned_split = df_filtered["assigned_to"].dropna().astype(str).str.split(r",\s*")
         assigned_flat = sorted(set(name.strip() for sublist in assigned_split for name in sublist))
 
-        assigned_filter = st.multiselect("Pricing", assigned_flat)
+        assigned_filter = st.multiselect("Pricing Member", assigned_flat)
         if assigned_filter:
             df_filtered = df_filtered[df_filtered["assigned_to"].apply(
                 lambda val: any(name in str(val) for name in assigned_filter)
@@ -136,13 +133,13 @@ def apply_filters(df, role):
         col6 = None
 
     with col4:
-        origin_filter = st.multiselect("Origin Port", sorted(df_filtered["origin_port"].dropna().unique()))
+        origin_filter = st.multiselect("Port of Origin", sorted(df_filtered["origin_port"].dropna().unique()))
         if origin_filter:
             df_filtered = df_filtered[df_filtered["origin_port"].isin(origin_filter)]
 
     with col5:
         all_destinations = sorted(set(", ".join(df_filtered["destination_ports"]).split(", ")))
-        destination_filter = st.multiselect("Destination Port", all_destinations)
+        destination_filter = st.multiselect("Port of Destination", all_destinations)
         if destination_filter:
             df_filtered = df_filtered[df_filtered["destination_ports"].apply(
                 lambda x: any(dest in x for dest in destination_filter)
@@ -152,7 +149,7 @@ def apply_filters(df, role):
         with col6:
             all_commercials = sorted(df["commercial"].dropna().unique())
             all_commercials_display = ["-- All --"] + all_commercials
-            selected_commercial = st.selectbox("Filter by Commercial", all_commercials_display)
+            selected_commercial = st.selectbox("Commercial", all_commercials_display)
             if selected_commercial != "-- All --":
                 df_filtered = df_filtered[df_filtered["commercial"] == selected_commercial]
 
@@ -359,7 +356,7 @@ def plot_price_comparison(df):
         title="Cost vs Target Comparison - Unassigned Requests (Price Reason)",
         xaxis_title="Request ID",
         yaxis_title="Price (USD)",
-        height=400,
+        height=450,
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -402,13 +399,12 @@ def plot_assigned_requests_by_person(df):
         title="Pricing Team Workload Distribution",
         xaxis_title="Pricing Member",
         yaxis_title="Requests",
-        height=400,
+        height=450,
         margin=dict(t=60, b=80),
         showlegend=False
     )
 
     st.plotly_chart(fig, use_container_width=True)
-
 
 
 def plot_assignation_status_pie(df):

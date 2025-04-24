@@ -5,8 +5,8 @@ from src.services.dashboard_utils import *
 import plotly.graph_objects as go
 
 def show(role, user):
-    df_requested, df_contracts, df_feedback = load_all_data()
-    df = preprocess_data(df_requested, df_contracts, df_feedback)
+    df_requested, df_feedback = load_all_data()
+    df = preprocess_data(df_requested, df_feedback)
     df = clean_commercial_names(df)
 
     if role == "commercial":

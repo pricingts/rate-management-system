@@ -98,7 +98,7 @@ def show_metrics(df_filtered):
     air_count = counts.get("Air", 0)
 
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric(label="Number of Request", value=request_quantity)
+    col1.metric(label="Requests", value=request_quantity)
     col2.metric(label="Maritime - FCL", value=maritime_fcl_count)
     col3.metric(label="Maritime - LCL", value=maritime_lcl_count)
     col4.metric(label="Air", value=air_count)
