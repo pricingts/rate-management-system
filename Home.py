@@ -65,7 +65,7 @@ else:
 
         if page == "Home":
             import src.views.Dashboard as d
-            d.show(role)
+            d.show(role, user)
 
         if page == "Contracts Management":
             import src.views.Contracts_Management as cm
@@ -89,7 +89,7 @@ else:
 
         if page == "Home":
             import src.views.Dashboard as d
-            d.show(role)
+            d.show(role, user)
 
         if page == "Contracts Management":
             import src.views.Contracts_Management as cm

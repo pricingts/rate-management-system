@@ -58,7 +58,6 @@ def create_overlay(data, overlay_path):
     c.drawString(300, 120, f"{commercial_data.get('tel', '').upper()}")
     c.drawString(300, 110, f"{commercial_data.get('email', '').upper()}")
 
-
     c.setFont("OpenSauceBold", 10) 
     c.drawString(118, 570, f"{data.get('client', '').upper()}")
     c.drawString(118, 558, f"{data.get('customer_name', '').upper()}")
@@ -78,7 +77,6 @@ def create_overlay(data, overlay_path):
     table_data = []
     total_cost_by_currency = {}
 
-    # Procesar los additional_surcharges por tipo de contenedor
     for container, surcharges in data.get("additional_surcharges", {}).items():
         for additional in surcharges:
             cost = additional.get("cost", 0)
@@ -87,10 +85,10 @@ def create_overlay(data, overlay_path):
             total_cost_by_currency[currency] = total_cost_by_currency.get(currency, 0) + cost
 
             row = [
-                additional.get("concept", ""),  # Concepto
-                currency,                       # Moneda
-                container,                      # Contenedor
-                f"${cost:.2f}",                 # Costo con formato
+                additional.get("concept", ""), 
+                currency,                      
+                container,                      
+                f"${cost:.2f}",                 
             ]
             table_data.append(row)
 

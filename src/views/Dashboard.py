@@ -1,40 +1,43 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import gspread
-from google.oauth2.service_account import Credentials
 from src.services.dashboard_utils import *
+import plotly.graph_objects as go
 
-def show(role):
-    df_requested = load_data_from_sheets("quotations_requested", "All Quotes")
-    df_contracts = load_data_from_sheets("costs_sales_contracts", "CONTRATOS")
-    df_feedback = load_data_from_sheets("time_sheet_id", "Quotations Feedback")
+def show(role, user):
+    df_requested, df_contracts, df_feedback = load_all_data()
+    df = preprocess_data(df_requested, df_contracts, df_feedback)
+    df = clean_commercial_names(df)
 
-    for df in (df_requested, df_contracts, df_feedback):
-        if "REQUEST_ID" in df.columns:
-            df.rename(columns={"REQUEST_ID": "request_id"}, inplace=True)
-        # opcional: uniformizar minúsculas/trim
-        df.columns = df.columns.str.strip().str.lower()
+    if role == "commercial":
+        df = df[df["commercial"].str.lower().str.strip() == user.lower().strip()]
 
-    # 1) Uno df_requested con df_feedback por request_id
-    df_merged = df_requested.merge(
-        df_feedback,
-        on="request_id",
-        how="left",
-        suffixes=("", "_feedback")
-    )
+    df = apply_filters(df, role)
 
-    # 2) Al resultado le uno df_contracts
-    df_merged = df_merged.merge(
-        df_contracts,
-        on="request_id",
-        how="left",
-        suffixes=("", "_contract")
-    )
+    if df.empty:
+        st.warning("No data to display with the current filters.")
+        return
 
-    # Y muestro el resultado
-    st.dataframe(df_merged)
+    show_kpis(df)
 
-    # st.write(df_requested)
-    # st.write(df_contracts)
-    # st.write(df_assigment)
+    col1, col2 = st.columns(2)
+    with col1:
+        plot_evolution(df)
+
+    with col2:
+        plot_assignation_status_pie(df)
+    
+    col3, col4 = st.columns(2)
+    with col3:
+        plot_unassignment_reasons(df)
+    
+    with col4:
+        plot_price_comparison(df)
+    
+    col5, col6 = st.columns(2)
+    with col5:
+        plot_top_clients_requests(df)
+    with col6:
+        plot_assigned_requests_by_person(df)
+
+    #st.write(df)
