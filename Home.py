@@ -61,13 +61,13 @@ else:
 
     if role in ["commercial", "admin"]:
         with st.sidebar:
-            page = st.radio("Go to", ["Home", "Your Quotations", "Contracts Management", "New Request", "Download Payment Request"])
+            page = st.radio("Go to", ["Home", "Your Quotations", "Contracts Management", "Scrap Rates", "New Request", "Download Payment Request"])
 
         if page == "Home":
             import src.views.Dashboard as d
             d.show(role, user)
 
-        if page == "Contracts Management":
+        elif page == "Contracts Management":
             import src.views.Contracts_Management as cm
             cm.show(role)
 
@@ -82,16 +82,20 @@ else:
         elif page == "Download Payment Request":
             import src.views.Payment_Request as pay
             pay.show(role)
+        
+        elif page == "Scrap Rates":
+            import src.views.Scrap_Rates as sr
+            sr.show()
 
     elif role in ["pricing", "ground", "inside_sales"]:
         with st.sidebar:
-            page = st.radio("Go to", ["Home", "Your Quotations", "Contracts Management", "Download Payment Request"])
+            page = st.radio("Go to", ["Home", "Your Quotations", "Contracts Management", "Scrap Rates", "Download Payment Request"])
 
         if page == "Home":
             import src.views.Dashboard as d
             d.show(role, user)
 
-        if page == "Contracts Management":
+        elif page == "Contracts Management":
             import src.views.Contracts_Management as cm
             cm.show(role)
 
@@ -102,3 +106,7 @@ else:
         elif page == "Download Payment Request":
             import src.views.Payment_Request as pay 
             pay.show(role)
+
+        elif page == "Scrap Rates":
+            import src.views.Scrap_Rates as sr
+            sr.show()

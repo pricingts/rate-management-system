@@ -130,29 +130,90 @@ def show_kpis(df):
     assignment_rate = (total_assigned / total_requests * 100) if total_requests > 0 else 0
 
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Requests", total_requests)
-    col2.metric("Assigned", total_assigned)
-    col3.metric("Not Assigned", total_not_assigned)
-    col4.metric("Assignment Rate", f"{assignment_rate:.1f}%")
+    col1.metric("**Total Requests**", total_requests)
+    col2.metric("**Assigned**", total_assigned)
+    col3.metric("**Not Assigned**", total_not_assigned)
+    col4.metric("**Assignment Rate**", f"{assignment_rate:.1f}%")
+
+# def plot_evolution(df):
+#     # Las fechas ya están parseadas, solo las renombramos
+#     df["request_date"] = df["time"]
+#     df["assigned_date"] = df["time_feedback"]
+
+#     df["request_month"] = pd.to_datetime(df["time"], errors="coerce").dt.to_period("M").astype(str)
+#     df["assigned_month"] = pd.to_datetime(df["time_feedback"], errors="coerce").dt.to_period("M").astype(str)
+
+
+#     reqs = df.groupby("request_month").agg(total_requests=("request_id", "count")).reset_index().rename(columns={"request_month": "month"})
+#     assigns = df[df["assignaton status"] == "yes"].groupby("assigned_month").agg(assigned=("request_id", "count")).reset_index().rename(columns={"assigned_month": "month"})
+
+#     evol = pd.merge(reqs, assigns, on="month", how="outer").fillna(0)
+
+#     fig = go.Figure()
+
+#     fig.add_trace(go.Scatter(
+#         x=evol["month"], y=evol["total_requests"],
+#         name="Total Requests",
+#         mode="lines+markers",
+#         line=dict(color="#276CF1"),
+#         hovertemplate='Month: %{x}<br>Total Requests: %{y}<extra></extra>'
+#     ))
+
+#     fig.add_trace(go.Scatter(
+#         x=evol["month"], y=evol["assigned"],
+#         name="Assigned",
+#         mode="lines+markers",
+#         line=dict(color="#212121"), 
+#         hovertemplate='Month: %{x}<br>Assigned: %{y}<extra></extra>'
+#     ))
+
+#     fig.update_layout(
+#         title="Request Evolution Over Time",
+#         xaxis_title="Month",
+#         yaxis_title="Requests",
+#         hovermode="x unified",
+#         height=400, 
+#         margin=dict(t=40, b=40),
+#         legend=dict(
+#             orientation="h",
+#             yanchor="bottom",
+#             y=0.95,
+#             xanchor="center",
+#             x=0.5
+#         )
+#     )
+
+#     st.plotly_chart(fig)
 
 def plot_evolution(df):
-    # Las fechas ya están parseadas, solo las renombramos
-    df["request_date"] = df["time"]
-    df["assigned_date"] = df["time_feedback"]
+    df["request_month"]  = pd.to_datetime(df["time"],           errors="coerce").dt.to_period("M").astype(str)
+    df["assigned_month"] = pd.to_datetime(df["time_feedback"],  errors="coerce").dt.to_period("M").astype(str)
 
-    df["request_month"] = pd.to_datetime(df["time"], errors="coerce").dt.to_period("M").astype(str)
-    df["assigned_month"] = pd.to_datetime(df["time_feedback"], errors="coerce").dt.to_period("M").astype(str)
-
-
-    reqs = df.groupby("request_month").agg(total_requests=("request_id", "count")).reset_index().rename(columns={"request_month": "month"})
-    assigns = df[df["assignaton status"] == "yes"].groupby("assigned_month").agg(assigned=("request_id", "count")).reset_index().rename(columns={"assigned_month": "month"})
+    reqs = (
+        df
+        .groupby("request_month")
+        .agg(total_requests=("request_id", "count"))
+        .reset_index()
+        .rename(columns={"request_month": "month"})
+    )
+    assigns = (
+        df[df["assignaton status"] == "yes"]
+        .groupby("assigned_month")
+        .agg(assigned=("request_id", "count"))
+        .reset_index()
+        .rename(columns={"assigned_month": "month"})
+    )
 
     evol = pd.merge(reqs, assigns, on="month", how="outer").fillna(0)
 
+    #st.write(evol)
+
+    # 4) Construir figura
     fig = go.Figure()
 
     fig.add_trace(go.Scatter(
-        x=evol["month"], y=evol["total_requests"],
+        x=evol["month"],
+        y=evol["total_requests"],
         name="Total Requests",
         mode="lines+markers",
         line=dict(color="#276CF1"),
@@ -160,19 +221,22 @@ def plot_evolution(df):
     ))
 
     fig.add_trace(go.Scatter(
-        x=evol["month"], y=evol["assigned"],
+        x=evol["month"],
+        y=evol["assigned"],
         name="Assigned",
         mode="lines+markers",
-        line=dict(color="#212121"), 
+        line=dict(color="#212121"),
         hovertemplate='Month: %{x}<br>Assigned: %{y}<extra></extra>'
     ))
+
+    fig.update_xaxes(type="category")
 
     fig.update_layout(
         title="Request Evolution Over Time",
         xaxis_title="Month",
         yaxis_title="Requests",
         hovermode="x unified",
-        height=400, 
+        height=400,
         margin=dict(t=40, b=40),
         legend=dict(
             orientation="h",

@@ -3,6 +3,7 @@ import pandas as pd
 from src.services.quotations_utils import *
 from ..common.role_utils import get_role_dfs
 from src.common.google_sheets import load_all_records
+from src.common.transformers import clean_commercial_names, preprocess_data
 
 def clean_text(value):
     if isinstance(value, str):
@@ -123,6 +124,9 @@ def show(role):
 
     request_df, contracts_df, ground_df = get_role_dfs(role, name, email)
 
+    df_all = preprocess_data(request_df, contracts_df, ground_df)
+    df = clean_commercial_names(df_all)
+
     tabs_names = ["Quotations Requested", "Contracts Quotations"]
 
     if role in ["ground", "admin"]:
@@ -231,10 +235,10 @@ def show(role):
             total_profit = df_filtered['Total Profit'].sum()
             col1, col2, col3, col4 = st.columns(4)
 
-            col1.metric(label="Quotations Downloaded", value=quotations_quantity)
-            col2.metric(label="Total Cost", value=f"${total_cost}")
-            col3.metric(label="Total Sale", value=f"${total_sale}")
-            col4.metric(label="Total Profit", value=f"${total_profit}")
+            col1.metric(label="**Quotations Downloaded**", value=quotations_quantity)
+            col2.metric(label="**Total Cost**", value=f"${total_cost}")
+            col3.metric(label="**Total Sale**", value=f"${total_sale}")
+            col4.metric(label="**Total Profit**", value=f"${total_profit}")
 
             if not df_filtered.empty:
                 for col in df_filtered.select_dtypes(include=["object"]).columns:

@@ -7,7 +7,7 @@ def user_data():
             "name": "Shadia Jaafar",
             "tel": "+57 12345678",
             "position": "Data Analyst",
-            "email": "pricing@tradingsolutions.com"
+            "email": "sjaafar@tradingsolutions.com"
         },
         "sales2@tradingsolutions.com": {
             "name": "Sharon Zuñiga",

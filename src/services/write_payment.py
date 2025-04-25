@@ -8,7 +8,27 @@ from reportlab.pdfbase.ttfonts import TTFont
 import os
 from reportlab.pdfbase import pdfmetrics
 from datetime import datetime
-from src.services.utils_payment import user_data
+from services.utils import user_data
+from reportlab.pdfbase.pdfmetrics import stringWidth
+
+def wrapped_draw_string(c, text, x, y, fontName, fontSize, max_width, leading=12):
+    words = text.split()
+    line = ""
+    y_offset = 0
+
+    for word in words:
+        test_line = f"{line} {word}".strip()
+        if stringWidth(test_line, fontName, fontSize) <= max_width:
+            line = test_line
+        else:
+            c.drawString(x, y - y_offset, line)
+            y_offset += leading
+            line = word
+
+    if line:
+        c.drawString(x, y - y_offset, line)
+
+    return y_offset
 
 font_path = "resources/fonts/OpenSauceSans-Regular.ttf"
 font_bold = "resources/fonts/OpenSauceSans-Bold.ttf"
@@ -59,24 +79,48 @@ def create_overlay(data, overlay_path):
     c.drawString(300, 110, f"{commercial_data.get('email', '').upper()}")
 
     c.setFont("OpenSauceBold", 10) 
-    c.drawString(118, 570, f"{data.get('client', '').upper()}")
-    c.drawString(118, 558, f"{data.get('customer_name', '').upper()}")
+    MAX_WIDTH = 200
 
-    c.setFont("OpenSauce", 10) 
-    c.drawString(118, 546, f"{data.get('customer_phone', '').upper()}")
-    c.drawString(118, 534, f"{data.get('customer_email', '')}")
+    init_y = 570
+
+    c.setFont("OpenSauceBold", 10)
+    used_offset = wrapped_draw_string(
+        c,
+        data.get('client', '').upper(),
+        x=118,
+        y=init_y,
+        fontName="OpenSauceBold",
+        fontSize=10,
+        max_width=MAX_WIDTH,
+        leading=12
+    )
+
+    next_y = init_y - used_offset - 12 
+    
+    c.setFont("OpenSauceBold", 10)
+    c.drawString(118, next_y, data.get('customer_name', '').upper())
+
+    c.setFont("OpenSauce", 10)
+    c.drawString(118, next_y - 12, data.get('customer_phone', '').upper())
+    c.drawString(118, next_y - 24, data.get('customer_email', ''))
 
     transport_type = data.get('transport_type', '')
+    
     if isinstance(transport_type, list):
         transport_type = ", ".join(transport_type)
 
-    c.drawString(300, 570, transport_type)
-    c.drawString(300, 558, f"Tipo de Operación: {data.get('operation_type')}")
-    c.drawString(300, 546, f"Referencia: {data.get('reference')}")
+    c.drawString(350, 570, transport_type)
+    c.drawString(350, 558, f"Tipo de Operación: {data.get('operation_type')}")
+
+    reference = data.get("reference", "")
+
+    if reference.strip():
+        c.drawString(300, 546, f"Referencia de cliente: {reference}")
 
     table_data = []
     total_cost_by_currency = {}
 
+    # Procesar los additional_surcharges por tipo de contenedor
     for container, surcharges in data.get("additional_surcharges", {}).items():
         for additional in surcharges:
             cost = additional.get("cost", 0)
@@ -85,10 +129,10 @@ def create_overlay(data, overlay_path):
             total_cost_by_currency[currency] = total_cost_by_currency.get(currency, 0) + cost
 
             row = [
-                additional.get("concept", ""), 
-                currency,                      
-                container,                      
-                f"${cost:.2f}",                 
+                additional.get("concept", ""),  # Concepto
+                currency,                       # Moneda
+                container,                      # Contenedor
+                f"${cost:.2f}",                 # Costo con formato
             ]
             table_data.append(row)
 
@@ -111,7 +155,7 @@ def create_overlay(data, overlay_path):
     table_width, table_height = table.wrapOn(c, 0, 0)
     table.drawOn(c, x, y - table_height)
 
-    totales_str = "  ".join([f"${total:.2f} {currency}" for currency, total in total_cost_by_currency.items()])
+    totales_str = f"{data.get('total_cop_trm')}"
 
     c.setFont("OpenSauceBold", 9)
     c.drawString(395, 240, totales_str)
@@ -120,25 +164,28 @@ def create_overlay(data, overlay_path):
     y_position = 190
 
     y_position_offset = 0
+
+    trm = str(data.get('trm', '')).strip()
+
     fields = [
         ("", "* Precios no incluyen IVA y están sujetos al mismo."),
-        ("", "* Los pagos en dólares se realizan a la TRM del día del pago a la línea +2%"),
+        ("", "* Los pagos en dólares se realizan a la TRM del día del pago a la línea +2%."),
         ("", "* (El día de la facturación se coloca la TRM a la que se realiza el pago)."),
     ]
 
-    notes = data.get('Notes', '').strip()
-    if notes:
-        fields.append(("Notes", notes))  
 
+    raw_trm = data.get('trm', None)
+    if raw_trm not in (None, "", "None"):
+        fields.append(("", f"* TRM: ${str(raw_trm).strip()}"))
+
+    y_position_offset = 0
     for label, value in fields:
-        if str(value).strip() and str(value) != "N/A":
-            if label == "Notes": 
-                for line in value.splitlines():
-                    c.drawString(115, y_position - y_position_offset, line)
-                    y_position_offset += 10
-            else:
-                c.drawString(115, y_position - y_position_offset, f"{label}{': ' if label else ''}{value}")
-                y_position_offset += 10
+        c.drawString(
+            115,
+            y_position - y_position_offset,
+            f"{label + ': ' if label else ''}{value}"
+        )
+        y_position_offset += 10
 
     c.save()
 
@@ -157,7 +204,7 @@ def merge_pdfs(template_path, overlay_path, output_path):
     with open(output_path, "wb") as f_out:
         output.write(f_out)
 
-def generate_pdf(data, template_path="resources/documents/Solicitud Anticipo-2.pdf", output_path="resources/documents/Solicitud.pdf", overlay_path="resources/documents/overlay.pdf"):
+def generate_pdf(data, template_path="resources/archives/Solicitud Anticipo-2.pdf", output_path="resources/archives/Solicitud.pdf", overlay_path="overlay.pdf"):
     create_overlay(data, overlay_path)
     merge_pdfs(template_path, overlay_path, output_path)
     return output_path

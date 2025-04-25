@@ -31,9 +31,14 @@ def preprocess_data(df_requested, df_ground, df_feedback):
     df_ground = clean_request_id(df_ground)
     df_feedback = clean_request_id(df_feedback)
 
-    for df, fmt in [(df_requested, "%d/%m/%Y %H:%M:%S"), (df_ground, "%Y-%m-%d %H:%M:%S")]:
-        if "time" in df.columns:
-            df["time"] = pd.to_datetime(df["time"], format="%d/%m/%Y %H:%M:%S", errors="coerce")
+    if "time" in df_requested.columns:
+        df_requested["time"] = pd.to_datetime(df_requested["time"], dayfirst=True, errors="coerce")
+
+    if "time" in df_ground.columns:
+        df_ground["time"] = pd.to_datetime(df_ground["time"], errors="coerce")
+
+    if "time" in df_feedback.columns:
+        df_feedback["time"] = pd.to_datetime(df_feedback["time"], errors="coerce")
 
     ids_requested = set(df_requested["request_id"].dropna())
     df_ground_unique = df_ground[~df_ground["request_id"].isin(ids_requested)]

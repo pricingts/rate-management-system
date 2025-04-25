@@ -345,7 +345,7 @@ def select_options(role, contrato_id, available_cargo_types, tabla_pivot):
             )
     else:
         st.write('You cannot to download quotations. Please contact the support team')
-        st.write('datasupport@tradingsol.com')
+        st.write('sjaafar@tradingsolutions.com')
 
 def show(role):
     email = st.experimental_user.email
@@ -400,12 +400,12 @@ def show(role):
             st.session_state.p_destino = None
 
         with col1:
-            st.session_state.p_origen = st.selectbox("POL", merged_df["POL"].unique(), index=0)
+            st.session_state.p_origen = st.selectbox("**Port of Origin**", merged_df["POL"].unique(), index=0)
 
         with col2:
             if st.session_state.p_origen:
                 destinos_disponibles = merged_df[merged_df["POL"] == st.session_state.p_origen]["POD"].unique()
-                st.session_state.p_destino = st.selectbox("POD", destinos_disponibles)
+                st.session_state.p_destino = st.selectbox("**Port of Destination**", destinos_disponibles)
 
         col1, col2 = st.columns(2)
 
@@ -416,7 +416,7 @@ def show(role):
                     (merged_df["POD"] == st.session_state.p_destino)
                 ]["COMMODITIES"].dropna().unique()
 
-                st.session_state.commodity_contracts = st.multiselect("Select Commodities", 
+                st.session_state.commodity_contracts = st.multiselect("**Select Commodities**", 
                 options=filtered_commodities, 
                 default=list(filtered_commodities))
         with col2:
@@ -426,7 +426,7 @@ def show(role):
                     (merged_df["POD"] == st.session_state.p_destino) &
                     (merged_df["COMMODITIES"].isin(st.session_state.commodity_contracts))
                 ]["TIPO CONT"].dropna().unique()
-                st.session_state.tipo_cont = st.multiselect("Select Container Type", 
+                st.session_state.tipo_cont = st.multiselect("**Select Container Type**", 
                                                 options=filtered_cont, 
                                                 default=list(filtered_cont))
 

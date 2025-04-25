@@ -5,7 +5,6 @@ from src.services.dashboard_utils import *
 import plotly.graph_objects as go
 from src.common.transformers import clean_commercial_names, preprocess_data
 
-
 def show(role, user):
     df_requested, df_ground, df_feedback = load_all_data()
     df_all = preprocess_data(df_requested, df_ground, df_feedback)
@@ -28,11 +27,11 @@ def show(role, user):
 
     with col2:
         plot_assignation_status_pie(df)
-    
+
     col3, col4 = st.columns(2)
     with col3:
         plot_unassignment_reasons(df)
-    
+
     with col4:
         plot_price_comparison(df)
     
@@ -42,4 +41,4 @@ def show(role, user):
     with col6:
         plot_assigned_requests_by_person(df)
 
-    #st.write(df)
+    st.write(df)
