@@ -8,7 +8,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 import os
 from reportlab.pdfbase import pdfmetrics
 from datetime import datetime
-from services.utils import user_data
+from src.services.utils_payment import user_data
 from reportlab.pdfbase.pdfmetrics import stringWidth
 
 def wrapped_draw_string(c, text, x, y, fontName, fontSize, max_width, leading=12):

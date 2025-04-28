@@ -13,10 +13,10 @@ def list_contains(field_str, selections):
     return any(s in items for s in selections)
 
 def prepare_dataframe(df):
-    if df.empty or "ROUTES_INFO" not in df.columns:
+    if df.empty or "routes_info" not in df.columns:
         return df
 
-    matches = df["ROUTES_INFO"].str.extractall(r"\(([^)]+)\)")
+    matches = df["routes_info"].str.extractall(r"\(([^)]+)\)")
     matches.reset_index(inplace=True)
     origens = matches[matches["match"] == 0].set_index("level_0")[0]
     destinos = matches[matches["match"] == 1].set_index("level_0")[0]
@@ -24,15 +24,15 @@ def prepare_dataframe(df):
     df["origen"] = df.index.to_series().apply(lambda i: [origens[i]] if i in origens.index else [])
     df["destino"] = df.index.to_series().apply(lambda i: [destinos[i]] if i in destinos.index else [])
 
-    df["TRANSPORT_COMBO"] = df.apply(
-        lambda row: f"{row['TRANSPORT_TYPE']} - {row['MODALITY']}" 
-                    if row['TRANSPORT_TYPE'] == "Maritime" else row['TRANSPORT_TYPE'], axis=1
+    df["transport_combo"] = df.apply(
+        lambda row: f"{row['transport_type']} - {row['modality']}" 
+                    if row['transport_type'] == "Maritime" else row['transport_type'], axis=1
     )
 
-    df["SERVICES_LIST"] = df["SERVICE"].fillna("").apply(
+    df["services_list"] = df["service"].fillna("").apply(
         lambda x: [item.strip() for item in re.split(r"[,\n;]+", x) if item.strip()]
     )
-    df["CONTAINERS_LIST"] = df["TYPE_CONTAINER"].fillna("").apply(
+    df["containers_list"] = df["type_container"].fillna("").apply(
         lambda x: [item.strip() for item in re.split(r"[,\n;]+", x) if item.strip()]
     )
 
@@ -52,19 +52,19 @@ def create_filters(df_full, key_prefix):
         selected_destino = st.multiselect('**Port of Destination**', destino_options, key=f"{key_prefix}_destino")
 
     with col3:
-        service_options = sorted({s for lst in df_full["SERVICES_LIST"] for s in lst})
+        service_options = sorted({s for lst in df_full["services_list"] for s in lst})
         selected_service = st.multiselect('**Service Requested**', service_options, key=f"{key_prefix}_service")
 
     with col4:
-        transport_options = sorted(df_full['TRANSPORT_COMBO'].dropna().unique())
+        transport_options = sorted(df_full['transport_combo'].dropna().unique())
         selected_transport = st.multiselect("**Transport/Modality**", transport_options, key=f"{key_prefix}_transport")
 
     with col5:
-        container_options = sorted({c for lst in df_full["CONTAINERS_LIST"] for c in lst})
+        container_options = sorted({c for lst in df_full["containers_list"] for c in lst})
         selected_container = st.multiselect('**Container Type**', container_options, key=f"{key_prefix}_cont_type")
 
     with col6:
-        client_options = sorted(df_full['CLIENT'].dropna().unique())
+        client_options = sorted(df_full['client'].dropna().unique())
         selected_client = st.multiselect('**Client**', client_options, key=f"{key_prefix}_client")
 
     return selected_origen, selected_destino, selected_service, selected_transport, selected_container, selected_client
@@ -77,22 +77,22 @@ def apply_filters(df_full, selected_origen, selected_destino, selected_client, s
     if selected_destino:
         df_filtered = df_filtered[df_filtered["destino"].apply(lambda x: any(d in x for d in selected_destino))]
     if selected_client:
-        df_filtered = df_filtered[df_filtered["CLIENT"].isin(selected_client)]
+        df_filtered = df_filtered[df_filtered["client"].isin(selected_client)]
     if selected_service:
-        df_filtered = df_filtered[df_filtered["SERVICE"].isin(selected_service)]
+        df_filtered = df_filtered[df_filtered["service"].isin(selected_service)]
     if selected_container:
         def row_has_container(container_str, selected):
             splitted = [item.strip() for item in re.split(r'[,\n;]+', str(container_str)) if item.strip()]
             return any(cont in splitted for cont in selected)
-        df_filtered = df_filtered[df_filtered["TYPE_CONTAINER"].apply(lambda x: row_has_container(x, selected_container))]
+        df_filtered = df_filtered[df_filtered["type_container"].apply(lambda x: row_has_container(x, selected_container))]
     if selected_transport:
-        df_filtered = df_filtered[df_filtered["TRANSPORT_COMBO"].isin(selected_transport)]
+        df_filtered = df_filtered[df_filtered["transport_combo"].isin(selected_transport)]
 
     return df_filtered
 
 def show_metrics(df_filtered):
     request_quantity = df_filtered.shape[0]
-    counts = df_filtered["TRANSPORT_COMBO"].value_counts()
+    counts = df_filtered["transport_combo"].value_counts()
     maritime_fcl_count = counts.get("Maritime - FCL", 0)
     maritime_lcl_count = counts.get("Maritime - LCL", 0)
     air_count = counts.get("Air", 0)
@@ -103,19 +103,18 @@ def show_metrics(df_filtered):
     col3.metric(label="**LCL**", value=maritime_lcl_count)
     col4.metric(label="**Air**", value=air_count)
 
-
 def show_grid(df_filtered, source):
     if df_filtered.empty:
         st.info("No hay registros para mostrar.")
         return
 
     visible_columns = [
-        "REQUEST_ID", "CLIENT", "ROUTES_INFO", "INCOTERM", 
-        "COMMODITY", "TRANSPORT_TYPE", "MODALITY", "TYPE_CONTAINER"
+        "request_id", "time", "service", "client", "routes_info", "incoterm", 
+        "commodity", "transport_type", "modality", "type_container"
     ]
     df_display = df_filtered[visible_columns].copy()
 
-    ids = df_filtered["REQUEST_ID"].dropna().unique().tolist()
+    ids = df_filtered["request_id"].dropna().unique().tolist()
     options = ["-- Select a request --"] + ids
 
     key = f"select_{source}_id"
@@ -134,7 +133,7 @@ def show_grid(df_filtered, source):
     st.dataframe(df_display, use_container_width=True, height=400, hide_index=True)
 
     if selected_id and selected_id != "-- Select a request --":
-        selected_row = df_filtered[df_filtered["REQUEST_ID"] == selected_id]
+        selected_row = df_filtered[df_filtered["request_id"] == selected_id]
         if not selected_row.empty:
             handle_row_selection(selected_row.to_dict("records"), source)
 
@@ -176,7 +175,6 @@ def handle_row_selection(selected_rows, source):
 
     st.session_state.dialog_type = source
     st.session_state.open_dialog = True
-
 
 
 def filter_contracts(df, selected_origin, selected_destination, selected_cargo, selected_client):

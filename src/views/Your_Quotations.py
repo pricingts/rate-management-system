@@ -3,7 +3,7 @@ import pandas as pd
 from src.services.quotations_utils import *
 from ..common.role_utils import get_role_dfs
 from src.common.google_sheets import load_all_records
-from src.common.transformers import clean_commercial_names, preprocess_data
+from src.common.transformers import clean_commercial_names, clean_request_id, convert_time_columns, ensure_all_columns_are_strings, merge_requested_and_ground
 
 def clean_text(value):
     if isinstance(value, str):
@@ -31,8 +31,8 @@ def show_dialog():
 
     if isinstance(df, pd.DataFrame) and not df.empty:
         st.dataframe(df)
-        request_id = df.loc['REQUEST_ID', 'Value']
-        commercial = df.loc['COMMERCIAL', 'Value']
+        request_id = df.loc['request_id', 'Value']
+        commercial = df.loc['commercial', 'Value']
         quotation_type = dialog_type
 
         if is_feedback_sent(request_id):
@@ -49,7 +49,7 @@ def show_dialog():
         cost, target = None, None
 
         if assigned == "Yes":
-            if "REQUEST_ID" in df.index:
+            if "request_id" in df.index:
                 st.markdown(f"### Great! Remember, your request ID is **{request_id}**")
             else:
                 st.markdown("### Request ID not found.")
@@ -124,8 +124,20 @@ def show(role):
 
     request_df, contracts_df, ground_df = get_role_dfs(role, name, email)
 
-    df_all = preprocess_data(request_df, contracts_df, ground_df)
-    df = clean_commercial_names(df_all)
+    request_df = convert_time_columns(request_df, dayfirst=True)
+    contracts_df = convert_time_columns(contracts_df)
+    ground_df = convert_time_columns(ground_df)
+
+    request_df = clean_request_id(request_df)
+    contracts_df = clean_request_id(contracts_df)
+    ground_df = clean_request_id(ground_df)
+
+    request_df = ensure_all_columns_are_strings(request_df)
+    contracts_df = ensure_all_columns_are_strings(contracts_df)
+    ground_df = ensure_all_columns_are_strings(ground_df)
+
+    request_df = clean_commercial_names(request_df)
+    request_df = merge_requested_and_ground(request_df, ground_df)
 
     tabs_names = ["Quotations Requested", "Contracts Quotations"]
 
@@ -163,13 +175,13 @@ def show(role):
             df_filtered = pd.DataFrame()
         else:
             df_full = prepare_dataframe(df_full)
-            texto_cols = ["COMMODITY"]
+            texto_cols = ["commodity"]
             for col in texto_cols:
                 if col in df_full:
                     df_full[col] = df_full[col].astype(str)
 
-            df_full['TIME'] = pd.to_datetime(df_full['TIME'], format='%d/%m/%Y %H:%M:%S')
-            df_full = df_full.sort_values(by='TIME', ascending=False)
+            #df_full['time'] = pd.to_datetime(df_full['time'], format='%d/%m/%Y %H:%M:%S')
+            df_full = df_full.sort_values(by='time', ascending=False)
 
             initialize_filters(key_prefix)
 
@@ -203,36 +215,36 @@ def show(role):
             df_filtered = pd.DataFrame()
 
         else:
-            df_full['Time'] = pd.to_datetime(df_full['Time'], format='%Y-%m-%d %H:%M:%S')
-            df_full = df_full.sort_values(by='Time', ascending=False)
+            df_full['time'] = pd.to_datetime(df_full['time'], format='%Y-%m-%d %H:%M:%S')
+            df_full = df_full.sort_values(by='time', ascending=False)
 
             initialize_filters(key_prefix)
 
             col1, col2 = st.columns(2)
             col3, col4 = st.columns(2)
             with col1:
-                pol_op = sorted(df_full['POL'].dropna().unique())
+                pol_op = sorted(df_full['pol'].dropna().unique())
                 selected_origin = st.multiselect("**Port of Origin**", pol_op, key=f"{key_prefix}_pol")
             with col2:
-                pod_op = sorted(df_full['POD'].dropna().unique())
+                pod_op = sorted(df_full['pod'].dropna().unique())
                 selected_destination = st.multiselect("**Port of Destination**", pod_op, key=f"{key_prefix}_pod")
             with col3:
-                cargo_op = sorted(df_full['Cargo Types'].dropna().unique())
+                cargo_op = sorted(df_full['cargo types'].dropna().unique())
                 selected_cargo = st.multiselect("**Container Type**", cargo_op, key=f"{key_prefix}_cargo")
             with col4:
-                cliente_op = sorted(df_full['Cliente'].dropna().astype(str).unique())
+                cliente_op = sorted(df_full['cliente'].dropna().astype(str).unique())
                 selected_client = st.multiselect("**Client**", cliente_op, key=f"{key_prefix}_client")
 
             df_filtered = filter_contracts(df_full, selected_origin, selected_destination, selected_cargo, selected_client)
 
-            df_filtered['Total Cost'] = df_filtered['Total Cost'].str.replace('$', '', regex=False).astype(float)
-            df_filtered['Total Sale'] = df_filtered['Total Sale'].str.replace('$', '', regex=False).astype(float)
-            df_filtered['Total Profit'] = df_filtered['Total Profit'].str.replace('$', '', regex=False).astype(float)
+            df_filtered['total cost'] = df_filtered['total cost'].str.replace('$', '', regex=False).astype(float)
+            df_filtered['total sale'] = df_filtered['total sale'].str.replace('$', '', regex=False).astype(float)
+            df_filtered['total profit'] = df_filtered['total profit'].str.replace('$', '', regex=False).astype(float)
 
             quotations_quantity = df_filtered.shape[0]
-            total_cost = df_filtered['Total Cost'].sum()
-            total_sale = df_filtered['Total Sale'].sum()
-            total_profit = df_filtered['Total Profit'].sum()
+            total_cost = df_filtered['total cost'].sum()
+            total_sale = df_filtered['total sale'].sum()
+            total_profit = df_filtered['total profit'].sum()
             col1, col2, col3, col4 = st.columns(4)
 
             col1.metric(label="**Quotations Downloaded**", value=quotations_quantity)
@@ -244,7 +256,7 @@ def show(role):
                 for col in df_filtered.select_dtypes(include=["object"]).columns:
                     df_filtered[col] = df_filtered[col].apply(clean_text)
 
-                request_ids = df_filtered["REQUEST_ID"].tolist()
+                request_ids = df_filtered["request_id"].tolist()
                 request_ids.insert(0, "-- Select a request --")
 
                 selected_id = st.selectbox("Select a request to view details", request_ids)
@@ -253,51 +265,47 @@ def show(role):
 
                 st.dataframe(df_filtered, use_container_width=True, height=600, hide_index=True)
 
-                selected_row = df_filtered[df_filtered["REQUEST_ID"] == selected_id]
+                selected_row = df_filtered[df_filtered["request_id"] == selected_id]
                 if not selected_row.empty:
                     handle_row_selection(selected_row.to_dict("records"), "contract")
 
-    if role in ["ground", "admin"]:
-        with tab_objs[2]:
+    # if role in ["ground", "admin"]:
+    #     with tab_objs[2]:
 
-            key_prefix = "ground"
-            col1, col2, col3 = st.columns([1,  0.18, 0.18])
-            with col1:
-                st.header("Ground Quotations")
-            with col2:
-                st.write(" ")
-                if st.button("Clear Filters", key="clear_ground"):
-                    clear_filters(key_prefix)
-                    st.rerun()
-            with col3:
-                st.write(" ")
-                if st.button("Refresh Data", key="button_4"):
-                    load_all_records.clear() 
-                    st.rerun()
+    #         key_prefix = "ground"
+    #         col1, col2, col3 = st.columns([1,  0.18, 0.18])
+    #         with col1:
+    #             st.header("Ground Quotations")
+    #         with col2:
+    #             st.write(" ")
+    #             if st.button("Clear Filters", key="clear_ground"):
+    #                 clear_filters(key_prefix)
+    #                 st.rerun()
+    #         with col3:
+    #             st.write(" ")
+    #             if st.button("Refresh Data", key="button_4"):
+    #                 load_all_records.clear() 
+    #                 st.rerun()
 
-            df_full = ground_df.copy()
+    #         df_full = ground_df.copy()
+    #         df_full = df_full[df_full['service'].str.contains("Ground Transportation", case=False, na=False)]
+    #         st.write(df_full)
 
-            if df_full is None or df_full.empty:
-                st.error("No data available. Try to update")
-                df_filtered = pd.DataFrame()
-            else:
-                df_full = ground_df.copy()
+    #         if df_full is None or df_full.empty:
+    #             st.error("No data available. Try to update")
+    #             df_filtered = pd.DataFrame()
+    #         else:
+    #             df_full = prepare_dataframe(df_full)
 
-            if df_full is None or df_full.empty:
-                st.error("No data available. Try to update")
-                df_filtered = pd.DataFrame()
-            else:
-                df_full = prepare_dataframe(df_full)
+    #             df_full['time'] = pd.to_datetime(df_full['time'], format='%Y-%m-%d %H:%M:%S')
+    #             df_full = df_full.sort_values(by='time', ascending=False)
 
-                df_full['TIME'] = pd.to_datetime(df_full['TIME'], format='%Y-%m-%d %H:%M:%S')
-                df_full = df_full.sort_values(by='TIME', ascending=False)
+    #             initialize_filters(key_prefix)
 
-                initialize_filters(key_prefix)
-
-                selected_origen, selected_destino, selected_service, selected_transport, selected_container, selected_client = create_filters(df_full, key_prefix)
-                df_filtered = apply_filters(df_full, selected_origen, selected_destino, selected_client, selected_service, selected_container, selected_transport)
-                show_metrics(df_filtered)
-                show_grid(df_filtered, key_prefix)
+    #             selected_origen, selected_destino, selected_service, selected_transport, selected_container, selected_client = create_filters(df_full, key_prefix)
+    #             df_filtered = apply_filters(df_full, selected_origen, selected_destino, selected_client, selected_service, selected_container, selected_transport)
+    #             show_metrics(df_filtered)
+    #             show_grid(df_filtered, key_prefix)
 
     if st.session_state.get("open_dialog", False):
         show_dialog()

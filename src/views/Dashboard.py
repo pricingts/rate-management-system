@@ -41,4 +41,4 @@ def show(role, user):
     with col6:
         plot_assigned_requests_by_person(df)
 
-    st.write(df)
+    #st.write(df)

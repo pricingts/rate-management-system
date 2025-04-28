@@ -25,34 +25,52 @@ def clean_request_id(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def convert_time_columns(df, dayfirst=False):
+    if "time" in df.columns:
+        df["time"] = pd.to_datetime(df["time"], format="mixed", dayfirst=dayfirst, errors="coerce")
+    return df
+
+def merge_requested_and_ground(df_requested, df_ground):
+    ids_requested = set(df_requested["request_id"].dropna())
+    df_ground_unique = df_ground[~df_ground["request_id"].isin(ids_requested)]
+    df_all_requests = pd.concat([df_requested, df_ground_unique], ignore_index=True)
+    return df_all_requests
+
+def merge_with_feedback(df_all_requests, df_feedback):
+    return df_all_requests.merge(df_feedback, on="request_id", how="left", suffixes=("", "_feedback"))
+
+def clean_assignation_status(df):
+    if "assignaton status" in df.columns:
+        df["assignaton status"] = df["assignaton status"].astype(str).str.strip().str.lower()
+    return df
+
+def ensure_all_columns_are_strings(df):
+    for col in df.columns:
+        if df[col].dtype == "object":
+            df[col] = df[col].astype(str)
+    return df
+
+def remove_specific_assignees(df, names_to_remove):
+    if "assigned_to" in df.columns:
+        pattern = '|'.join(names_to_remove)
+        df = df[~df["assigned_to"].str.contains(pattern, case=False, na=False)]
+    return df
+
 def preprocess_data(df_requested, df_ground, df_feedback):
 
     df_requested = clean_request_id(df_requested)
     df_ground = clean_request_id(df_ground)
     df_feedback = clean_request_id(df_feedback)
 
-    if "time" in df_requested.columns:
-        df_requested["time"] = pd.to_datetime(df_requested["time"], dayfirst=True, errors="coerce")
+    df_requested = convert_time_columns(df_requested, dayfirst=True)
+    df_ground = convert_time_columns(df_ground)
+    df_feedback = convert_time_columns(df_feedback)
 
-    if "time" in df_ground.columns:
-        df_ground["time"] = pd.to_datetime(df_ground["time"], errors="coerce")
+    df_all_requests = merge_requested_and_ground(df_requested, df_ground)
+    df = merge_with_feedback(df_all_requests, df_feedback)
 
-    if "time" in df_feedback.columns:
-        df_feedback["time"] = pd.to_datetime(df_feedback["time"], errors="coerce")
-
-    ids_requested = set(df_requested["request_id"].dropna())
-    df_ground_unique = df_ground[~df_ground["request_id"].isin(ids_requested)]
-    df_all_requests = pd.concat([df_requested, df_ground_unique], ignore_index=True)
-
-    df = df_all_requests.merge(df_feedback, on="request_id", how="left", suffixes=("", "_feedback"))
-
-    if "assignaton status" in df.columns:
-        df["assignaton status"] = df["assignaton status"].astype(str).str.strip().str.lower()
-    for col in df.columns:
-        if df[col].dtype == "object":
-            df[col] = df[col].astype(str)
-
-    if "assigned_to" in df.columns:
-        df = df[~df["assigned_to"].str.contains("shadia", case=False, na=False)]
+    df = clean_assignation_status(df)
+    df = ensure_all_columns_are_strings(df)
+    df = remove_specific_assignees(df, ["shadia"])
 
     return df

@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
-from services.utils import *
+from src.services.utils_payment import *
 from datetime import datetime
 import pytz
-from services.write_pdf import generate_pdf
+from src.services.write_payment import generate_pdf
 import math
 
 colombia_timezone = pytz.timezone('America/Bogota')
