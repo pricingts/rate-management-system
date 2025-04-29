@@ -18,7 +18,7 @@ def filter_commercial(
     user_name: str, user_email: str
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     df_req = req[req["COMMERCIAL"] == user_name]
-    df_ctr = ctr[ctr["Commercial"] == user_name]
+    df_ctr = ctr[ctr["COMMERCIAL"] == user_name]
     return df_req, df_ctr, pd.DataFrame()
 
 def filter_pricing(

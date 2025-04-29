@@ -13,17 +13,15 @@ def clean_commercial_names(df: pd.DataFrame) -> pd.DataFrame:
         df['commercial'] = df['commercial'].replace(name_corrections)
     return df
 
-
 def clean_request_id(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     if 'REQUEST_ID' in df.columns:
         df = df.rename(columns={'REQUEST_ID': 'request_id'})
-    df.columns = df.columns.str.strip().str.lower()
+        df.columns = df.columns.str.strip().str.lower()
 
     if 'request_id' in df.columns:
         df['request_id'] = df['request_id'].astype(str).str.extract(r"(Q\d{1,})", expand=False)
     return df
-
 
 def convert_time_columns(df, dayfirst=False):
     if "time" in df.columns:

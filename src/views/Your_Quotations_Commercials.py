@@ -137,7 +137,7 @@ def show(role):
     ground_df = ensure_all_columns_are_strings(ground_df)
 
     request_df = clean_commercial_names(request_df)
-    request_df = merge_requested_and_ground(request_df, ground_df)
+    #request_df = merge_requested_and_ground(request_df, ground_df) #solo para comerciales
 
     tabs_names = ["Quotations Requested", "Contracts Quotations"]
 
@@ -180,7 +180,7 @@ def show(role):
                 if col in df_full:
                     df_full[col] = df_full[col].astype(str)
 
-            #df_full['time'] = pd.to_datetime(df_full['time'], format='%d/%m/%Y %H:%M:%S')
+            df_full['time'] = pd.to_datetime(df_full['time'], format='%d/%m/%Y %H:%M:%S')
             df_full = df_full.sort_values(by='time', ascending=False)
 
             initialize_filters(key_prefix)
@@ -269,43 +269,44 @@ def show(role):
                 if not selected_row.empty:
                     handle_row_selection(selected_row.to_dict("records"), "contract")
 
-    # if role in ["ground", "admin"]:
-    #     with tab_objs[2]:
+    if role in ["admin"]:
+        with tab_objs[2]:
 
-    #         key_prefix = "ground"
-    #         col1, col2, col3 = st.columns([1,  0.18, 0.18])
-    #         with col1:
-    #             st.header("Ground Quotations")
-    #         with col2:
-    #             st.write(" ")
-    #             if st.button("Clear Filters", key="clear_ground"):
-    #                 clear_filters(key_prefix)
-    #                 st.rerun()
-    #         with col3:
-    #             st.write(" ")
-    #             if st.button("Refresh Data", key="button_4"):
-    #                 load_all_records.clear() 
-    #                 st.rerun()
+            key_prefix = "ground"
+            col1, col2, col3 = st.columns([1,  0.18, 0.18])
+            with col1:
+                st.header("Ground Quotations")
+            with col2:
+                st.write(" ")
+                if st.button("Clear Filters", key="clear_ground"):
+                    clear_filters(key_prefix)
+                    st.rerun()
+            with col3:
+                st.write(" ")
+                if st.button("Refresh Data", key="button_4"):
+                    load_all_records.clear() 
+                    st.rerun()
 
-    #         df_full = ground_df.copy()
-    #         df_full = df_full[df_full['service'].str.contains("Ground Transportation", case=False, na=False)]
-    #         st.write(df_full)
+            df_full = ground_df.copy()
+            df_full = df_full[df_full['service'].str.contains("Ground Transportation", case=False, na=False)]
 
-    #         if df_full is None or df_full.empty:
-    #             st.error("No data available. Try to update")
-    #             df_filtered = pd.DataFrame()
-    #         else:
-    #             df_full = prepare_dataframe(df_full)
+            if df_full is None or df_full.empty:
+                st.error("No data available. Try to update")
+                df_filtered = pd.DataFrame()
+            else:
+                df_full = prepare_dataframe(df_full)
 
-    #             df_full['time'] = pd.to_datetime(df_full['time'], format='%Y-%m-%d %H:%M:%S')
-    #             df_full = df_full.sort_values(by='time', ascending=False)
+                df_full['time'] = pd.to_datetime(df_full['time'], format='%Y-%m-%d %H:%M:%S', errors='coerce')
 
-    #             initialize_filters(key_prefix)
+                df_full = df_full.sort_values('time', ascending=False)
+                df_full = df_full.reset_index(drop=True)
 
-    #             selected_origen, selected_destino, selected_service, selected_transport, selected_container, selected_client = create_filters(df_full, key_prefix)
-    #             df_filtered = apply_filters(df_full, selected_origen, selected_destino, selected_client, selected_service, selected_container, selected_transport)
-    #             show_metrics(df_filtered)
-    #             show_grid(df_filtered, key_prefix)
+                initialize_filters(key_prefix)
+
+                selected_origen, selected_destino, selected_service, selected_transport, selected_container, selected_client = create_filters(df_full, key_prefix)
+                df_filtered = apply_filters(df_full, selected_origen, selected_destino, selected_client, selected_service, selected_container, selected_transport)
+                show_metrics(df_filtered)
+                show_grid(df_filtered, key_prefix)
 
     if st.session_state.get("open_dialog", False):
         show_dialog()

@@ -96,7 +96,7 @@ def apply_filters(df, role):
             df_filtered = df_filtered[df_filtered["destination_ports"].apply(
                 lambda x: any(dest in x for dest in destination_filter)
             )]
-    
+
     with col6:
         all_services = df_filtered["service"].dropna().astype(str)
         all_services_split = set()

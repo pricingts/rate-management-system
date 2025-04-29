@@ -13,10 +13,10 @@ def identity_role(email):
             "sales2", "sales1", "sales3", "sales4", "sales5", "sales6", "bds", "insidesales"
         ],
         "pricing": [
-            "pricing2", "pricing8", "pricing6", "pricing10", "pricing11", "customer9"
+            "pricing8", "pricing6", "pricing10", "pricing11", "customer9",
         ],
         "admin": [
-            "manager", "jsanchez", "pricing2", "manager", "sjaafar"
+            "manager", "jsanchez", "pricing2", "sjaafar"
         ],
         "scrap_team": [
             "bds", "insidesales", "sales", "pricing3", "pricing6"
@@ -72,7 +72,7 @@ else:
             cm.show(role)
 
         elif page == "Your Quotations":
-            import src.views.Your_Quotations as pricing 
+            import src.views.Your_Quotations_Commercials as pricing 
             pricing.show(role)
 
         elif page == "New Request":
@@ -82,14 +82,14 @@ else:
         elif page == "Download Payment Request":
             import src.views.Payment_Request as pay
             pay.show(role)
-        
+
         elif page == "Scrap Rates":
             import src.views.Scrap_Rates as sr
             sr.show()
 
     elif role in ["pricing", "ground", "inside_sales"]:
         with st.sidebar:
-            page = st.radio("Go to", ["Home", "Your Quotations", "Contracts Management", "Scrap Rates", "Download Payment Request"])
+            page = st.radio("Go to", ["Home", "Quotations", "Contracts Management", "Scrap Rates", "Download Payment Request"])
 
         if page == "Home":
             import src.views.Dashboard as d
@@ -99,8 +99,8 @@ else:
             import src.views.Contracts_Management as cm
             cm.show(role)
 
-        elif page == "Your Quotations":
-            import src.views.Your_Quotations as pricing 
+        elif page == "Quotations":
+            import src.views.Your_Quotations_Pricing as pricing 
             pricing.show(role)
 
         elif page == "Download Payment Request":

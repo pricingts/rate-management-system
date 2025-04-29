@@ -145,8 +145,7 @@ def handle_row_selection(selected_rows, source):
     selected_df = pd.DataFrame([record])
 
     exclude_columns = [
-        "origen", "destino", "EMAIL_SENT", "FEEDBACK",
-        "ASSIGNED_TO", "DEADLINE", "TRANSPORT_COMBO"
+        "origen", "destino", "feedback", "deadline", "email_sent", "transport_combo", "services_list", "containers_list"
     ]
     cols_to_drop = [c for c in exclude_columns if c in selected_df.columns]
     selected_df.drop(columns=cols_to_drop, inplace=True)
@@ -180,13 +179,13 @@ def handle_row_selection(selected_rows, source):
 def filter_contracts(df, selected_origin, selected_destination, selected_cargo, selected_client):
     df_filtered = df.copy()
     if selected_origin:
-        df_filtered = df_filtered[df_filtered["POL"].apply(lambda x: any(o in x for o in selected_origin))]
+        df_filtered = df_filtered[df_filtered["pol"].apply(lambda x: any(o in x for o in selected_origin))]
     if selected_destination:
-        df_filtered = df_filtered[df_filtered["POD"].apply(lambda x: any(o in x for o in selected_destination))]
+        df_filtered = df_filtered[df_filtered["pod"].apply(lambda x: any(o in x for o in selected_destination))]
     if selected_cargo:
-        df_filtered = df_filtered[df_filtered["Cargo Types"].apply(lambda x: any(o in x for o in selected_cargo))]
+        df_filtered = df_filtered[df_filtered["cargo types"].apply(lambda x: any(o in x for o in selected_cargo))]
     if selected_client:
-        df_filtered = df_filtered[df_filtered["Cliente"].apply(lambda x: any(o in x for o in selected_client))]
+        df_filtered = df_filtered[df_filtered["cliente"].apply(lambda x: any(o in x for o in selected_client))]
     return df_filtered
 
 def get_sheets_client():
