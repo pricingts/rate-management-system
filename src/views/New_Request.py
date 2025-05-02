@@ -701,14 +701,12 @@ def show(role):
                                             else:
                                                 all_details[key] = {str(value)}
 
-                                    # **8️⃣ Convertir sets a cadenas separadas por saltos de línea**
                                     for key in ["service", "container_characteristics", "imo", "routes_info", "info_pallets_str", "info_flatrack", "type_container"]:
                                         grouped_record[key] = "\n".join(sorted(grouped_record[key])) if grouped_record[key] else ""
 
                                     for key, value_set in all_details.items():
                                         grouped_record[key] = "\n".join(sorted(value_set))
 
-                                    # **9️⃣ Crear DataFrame y guardar**
                                     new_df = pd.DataFrame([grouped_record])
 
                                     new_df = new_df.reindex(columns=all_quotes_columns, fill_value="")

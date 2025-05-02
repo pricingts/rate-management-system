@@ -166,15 +166,18 @@ def show(role):
             df_filtered['total profit'] = df_filtered['total profit'].str.replace('$', '', regex=False).astype(float)
 
             quotations_quantity = df_filtered.shape[0]
-            total_cost = df_filtered['total cost'].sum()
-            total_sale = df_filtered['total sale'].sum()
-            total_profit = df_filtered['total profit'].sum()
-            col1, col2, col3, col4 = st.columns(4)
+            total_cost   = round(df_filtered['total cost'].sum(),   2)
+            total_sale   = round(df_filtered['total sale'].sum(),   2)
+            total_profit = round(df_filtered['total profit'].sum(), 2)
 
+            print(total_sale)
+            print(total_profit)
+
+            col1, col2, col3, col4 = st.columns(4)
             col1.metric(label="**Quotations Downloaded**", value=quotations_quantity)
-            col2.metric(label="**Total Cost**", value=f"${total_cost}")
-            col3.metric(label="**Total Sale**", value=f"${total_sale}")
-            col4.metric(label="**Total Profit**", value=f"${total_profit}")
+            col2.metric(label="**Total Cost**",   value=f"${total_cost:.2f}")
+            col3.metric(label="**Total Sale**",   value=f"${total_sale:.2f}")
+            col4.metric(label="**Total Profit**", value=f"${total_profit:.2f}")
 
             if not df_filtered.empty:
                 for col in df_filtered.select_dtypes(include=["object"]).columns:

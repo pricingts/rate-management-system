@@ -240,7 +240,16 @@ def select_options(role, contrato_id, available_cargo_types, tabla_pivot):
                     st.write(cost_display)
 
                 with cols[idx * 2 + 1]: 
-                    sale = st.number_input(f'Sale of {surcharge}', min_value=0.0, step=0.01, key=f'value_{surcharge}_{cont}_{contrato_id}')
+                    sale = round(
+                        st.number_input(
+                            f'Sale of {surcharge}',
+                            min_value=0.0,
+                            step=0.01,
+                            format="%.2f",
+                            key=f'value_{surcharge}_{cont}_{contrato_id}'
+                        ),
+                        2
+                    )
                     surcharge_values[surcharge][cont] = sale
 
                 profit = sale - cost_value
@@ -270,7 +279,16 @@ def select_options(role, contrato_id, available_cargo_types, tabla_pivot):
             with col2:
                 surcharge["cost"] = st.number_input(f"Cost", min_value=0.0, step=0.01, key=f'cost_{i}_{contrato_id}')
             with col3:
-                surcharge["sale"] = st.number_input(f"Sale", min_value=0.0, step=0.01, key=f'sale_{i}_{contrato_id}')
+                surcharge["sale"] = round(
+                    st.number_input(
+                        "Sale",
+                        min_value=0.0,
+                        step=0.01,
+                        format="%.2f",
+                        key=f'sale_{i}_{contrato_id}'
+                    ),
+                    2
+                )
             with col4:
                 st.write(" ")
                 st.write(" ")
@@ -310,11 +328,11 @@ def select_options(role, contrato_id, available_cargo_types, tabla_pivot):
                 "pod": st.session_state["selected_data"].get("POD", ""),
                 "commodity": st.session_state["selected_data"].get("Details", {}).get("Commodities", ""),
                 "commercial": st.session_state["selected_data"].get("Commercial", ""),
-                "contract_id": contrato_id  ,
+                "contract_id": contrato_id,
                 "Details": st.session_state["selected_data"].get("Details", {}),
                 "Notes": st.session_state["selected_data"].get("Notes", "")
-        }
-            st.write(quotation_data)
+            }
+            #st.write(quotation_data)
 
             save_to_google_sheets(quotation_data, start_time)
 
@@ -392,25 +410,37 @@ def show(role):
 
         col1, col2 = st.columns(2)
 
-        if "p_origen" not in st.session_state:
-            st.session_state.p_origen = None
-        if "p_destino" not in st.session_state:
-            st.session_state.p_destino = None
-        if "commodity" not in st.session_state:
-            st.session_state.p_destino = None
+        if "p_origen"   not in st.session_state: st.session_state.p_origen = None
+        if "p_destino"  not in st.session_state: st.session_state.p_destino = None
+        if "commodity_contracts" not in st.session_state: st.session_state.commodity_contracts = []
+        if "tipo_cont"  not in st.session_state: st.session_state.tipo_cont = []
 
         with col1:
-            st.session_state.p_origen = st.selectbox("**Port of Origin**", merged_df["POL"].unique(), index=0)
+                opciones_origen = merged_df["POL"].unique().tolist()
+                opciones_origen.insert(0, "") 
+                st.selectbox(
+                    "**Port of Origin**",
+                    opciones_origen,
+                    index=0,
+                    key="p_origen"
+                )
 
         with col2:
-            if st.session_state.p_origen:
-                destinos_disponibles = merged_df[merged_df["POL"] == st.session_state.p_origen]["POD"].unique()
-                st.session_state.p_destino = st.selectbox("**Port of Destination**", destinos_disponibles)
+            if st.session_state.get("p_origen"):
+                opciones_destino = merged_df[merged_df["POL"] == st.session_state.p_origen]["POD"].unique().tolist()
+                opciones_destino.insert(0, "") 
+
+                st.selectbox(
+                    "**Port of Destination**",
+                    opciones_destino,
+                    index=0,
+                    key="p_destino"
+                )
 
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.session_state.p_origen and st.session_state.p_destino:
+            if st.session_state.get("p_origen") and st.session_state.get("p_destino"):
                 filtered_commodities = merged_df[
                     (merged_df["POL"] == st.session_state.p_origen) & 
                     (merged_df["POD"] == st.session_state.p_destino)
@@ -420,7 +450,7 @@ def show(role):
                 options=filtered_commodities, 
                 default=list(filtered_commodities))
         with col2:
-            if st.session_state.p_origen and st.session_state.p_destino:
+            if st.session_state.get("p_origen") and st.session_state.get("p_destino"):
                 filtered_cont = merged_df[
                     (merged_df["POL"] == st.session_state.p_origen) & 
                     (merged_df["POD"] == st.session_state.p_destino) &
@@ -430,7 +460,7 @@ def show(role):
                                                 options=filtered_cont, 
                                                 default=list(filtered_cont))
 
-        if st.session_state.p_origen and st.session_state.p_destino:
+        if st.session_state.get("p_origen") and st.session_state.get("p_destino"):
             p_origen = st.session_state.p_origen
             p_destino = st.session_state.p_destino
             commodity = st.session_state.commodity_contracts
